@@ -1,0 +1,274 @@
+---
+title: "2. Single-site Changing PE"
+author: "Chris Terry"
+date: "2026-06-16"
+output: 
+  html_document: 
+    toc: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Introduction and Packages
+
+```{r setup}
+knitr::opts_chunk$set(warning = FALSE, message = TRUE)
+library(cmdstanr)
+library(posterior)
+library(statcomp)
+library(tidyverse)
+library(cowplot)
+library(grid)
+
+
+source("R/pe_data_generation.R")
+source("R/pe_model_postprocess.R")
+source("R/pe_prior_calibration.R")
+
+
+```
+
+This script runs the second demonstration example using simulated data.
+
+The source data is a single long time series where the external noise increases through time.
+
+# NSB prior model for PE trends.
+
+Annotated STAN model code to fit a linear dependency between time and the relative frequency of each of the motifs, and then to calculate the change in PE.
+
+In this model the posterior of the PE at each of the supplied time points is also returned for ease of use. This is a derived quantity, not a directly fit value.
+
+Time (T) is assumed to have been scaled and centred to range from −0.5 to +0.5.
+
+`prior_only` is a binary flag. If 1, new data is not used other than to set the data structure, and the prior is returned.
+
+Quantities:
+
+$\theta$, $\eta$, $\beta$ terms are vectors of length the number of motifs (usually 6).
+
+$\theta_0$ a baseline motif-probability simplex at $T = 0$. Because time is centred, this corresponds to the midpoint of the time series. $\theta_t$ is the expected motif distribution at time $T$
+
+$\beta$ terms identify the response to the predictor variable (here time)
+
+$\eta_t$ is the linear predictor for the motif probabilities. In some ways it is a convenience parameter built from constructed from the $\beta$ time regression.
+
+
+The expected motif-probability vector is then:
+
+$$\eta_t = log(\theta_0) + \beta_{time} T$$
+
+
+$$\theta_t=\operatorname{softmax}(\eta_t)$$
+
+$$PE_t =-\sum_k \theta_{k,t}log(\theta_{k,t})  / log(K) $$
+Note that the softmax function implicitly centers the $\eta$ values. 
+
+
+```{r}
+nsb_trend_model <- cmdstan_model("stan/core_02_single_site_linear_trend_optimised.stan")
+
+nsb_trend_model
+```
+
+# Underlying Time Series Data
+
+## Changing through time
+
+The $\sigma$ of the underlying data increases linerly from 0.1 to 0.2 over the 1000 timesteps.
+
+NB the simulate_feedback_sites() function includes a 100-step burn in period by default.
+
+The increase in noise is only marginally visible from a quick look at the raw data.
+
+```{r}
+AR2 = -1.1
+
+sim_change<- simulate_feedback_sites(n_site = 2,n_year = 1000,
+                                     delayed_feedback = AR2,
+                                     sd_start = 0.1, sd_end = 0.2)
+
+sim_change_long <- sim_change$abundance_matrix[,1]
+
+plot(sim_change_long, type = 'l')
+
+```
+
+### Making Data bundle
+
+Reformat the data into the form neded by the STAN function.
+
+This includes specifying the prior on the response of motifs to time slope.
+
+The model's time-input is scaled: one centred unit makes one unit of beta a logit-scale change in relative motif frequency, although this remains quite complex to interpret on the simplex. Without some kind of regularisation, the model would have trouble converging.
+
+How to determine the slope_prior_sd? This prior determines the expected spread of beta terms linking scaled time and the logit-scale relative motif frequencies. With the time range scaled to have a range of 1, this can be interpreted reasonably cleanly. A slope_prior_sd of 0.5 implies it is reasonable to expect some log-ratio shifts of around +/- 1, which is probably rather large.
+
+Here a value of 0.75 is used to give the maximum responsiveness to the relatively large dataset used here. 0.5 is probably a more useful default when less data is available.
+
+```{r}
+make_data_bundle_single_site_trend <- function(y , m=3){
+  Z <- ordinal_pattern_time_series(y, m)+1 # Vector of motifs, from 1
+  Z <- Z[!is.na(Z)]
+  N = length(Z)
+  
+  time_scaled = as.vector(seq( from = -0.5, to = 0.5, length = N)) 
+  list(N = N,
+       K = as.integer(factorial(m)),
+       y = as.integer(Z),
+       time_scaled=time_scaled, 
+       G = N,                           ## Predict on same scale and values as data
+       time_grid_scaled = time_scaled,  ## Predict on same scale and values as data
+       prior_only = 0L,
+       slope_prior_sd = 0.75)      
+}
+
+db <- make_data_bundle_single_site_trend(sim_change_long)
+str(db)
+```
+
+### Finding 'True' PE Values
+
+To numerically identify the 'true' value of the PE at various levels of $\sigma$, a set of long time series with fixed sd, are used to observe the 'true' PE.
+
+```{R}
+N_Sample_points<- 11
+
+map( seq(0.1, 0.2, l=N_Sample_points), function(sd){
+  sim<- simulate_feedback_sites(n_site = 2,n_year = 100000,
+                                delayed_feedback = AR2,
+                                sd_start = sd, sd_end = sd)
+  return(sim$abundance_matrix[,1])})%>%
+  map( ordinal_pattern_distribution, ndemb =3) -> TrueSeriesMotifDists
+
+## Compare long series of fixed noise:
+Underlying_Trend <- map_dbl(TrueSeriesMotifDists, permutation_entropy)
+
+Underlying_Trend
+
+PE_TRUE<-data.frame( TruePE = Underlying_Trend,
+                     SD = seq(0.1, 0.2, l=N_Sample_points),
+                     Scaled_time =seq(-0.5,  0.5, l=N_Sample_points))
+
+plot(PE_TRUE$SD, PE_TRUE$TruePE)
+```
+
+# Fitting Model
+
+```{R eval = FALSE}
+## takes about 1 minute to run
+
+nsb_trend <-nsb_trend_model$sample(data = db,
+                                   chains = 4, parallel_chains = 4,
+                                   adapt_delta = 0.95, refresh = 0)
+
+pe_time_df<- nsb_trend$summary(variables = c('pe_time', 'beta_time',
+                                             'theta0', 'alpha_nsb',
+                                             'theta_time'))
+write_csv( pe_time_df, 'model fits/vars_time_df75.csv')    
+```
+
+## Comparing fit to 'true' values
+
+```{R}
+vars_time_df.csv <- read_csv('model fits/vars_time_df75.csv')    
+
+vars_time_df.csv %>%
+  filter( str_starts(variable,'pe_time'))%>%
+  mutate( time_scaled = db$time_grid_scaled) %>%
+  ggplot( aes(y = mean, x = time_scaled ))+
+  geom_errorbar(aes ( ymin = q5, ymax = q95),
+                col = 'grey90')+
+  geom_point(aes (y = mean,
+                  col = 'Posterior Mean'))+
+  geom_line(data =PE_TRUE,
+            aes(x = Scaled_time, y = TruePE,
+                col = '"True"'))+
+  geom_point(data =PE_TRUE,
+             aes(x = Scaled_time, y = TruePE,
+                 col = '"True"'))+
+  theme_classic()+
+  theme(legend.position = 'bottom')+
+  xlab( 'Time\n(scaled and centered)')+
+  ylab( 'Permutation Entropy' )+
+  scale_colour_manual(values = c(  "Posterior Mean" = "black",
+                                   '"True"' = "#0072B2" ),
+                      name = NULL)-> PE_ThroughTime_Trial
+
+PE_ThroughTime_Trial
+
+```
+
+### Changes in motif ratio
+
+A deeper test of whether the model is capturing underlying trends.
+
+'True' values here are calculated from long series at fixed noise levels.
+
+```{r}
+Motif_cols <- c(  "123" = "#4CAF65",  # increasing
+  "132" = "#F48FA5",  # peak
+  "213" = "#62A8E5",  # trough
+  "231" = "#C83E68",  # peak
+  "312" = "#3659B8",  # trough
+  "321" = "#F0AD32"   # decreasing
+)
+truth_log_probs <- map_dfr(TrueSeriesMotifDists,
+                           function(p) {
+                             data.frame( motif = motif_labels_3,
+                                         log_p_centered = log(p) - mean(log(p)),
+                                         p = p/sum(p) )})
+
+truth_time <- seq(-0.5, 0.5, length.out = length(TrueSeriesMotifDists))
+sds <- seq(0.1, 0.2, l=N_Sample_points)
+truth_log_probs$time_scaled = rep(truth_time, each = 6) 
+truth_log_probs$sd <- rep(sds, each = 6) 
+```
+
+### Plotting Fitted Motif Probabilities against observed
+
+```{r}
+vars_time_df.csv %>%
+  filter(str_starts(variable, "theta_time") ) %>%
+  mutate( time = as.numeric(str_extract(variable, "\\d+")),
+          motif_id = as.numeric(str_extract(variable, "(?<=,)\\d+")),
+          motif = motif_labels_3[motif_id]) %>%
+  mutate( sd = seq(0.1, 0.2, l= 998)[time]) %>%
+  ggplot( aes( x = sd, y =mean, col = motif))+
+  geom_point( size= 0.5)+
+  theme_classic()+
+  scale_colour_manual( values = Motif_cols, name = 'Motif:')+
+  scale_y_continuous(breaks = c( 0,0.1, 0.2, 0.3), limits =c( 0, 0.3))+
+  scale_x_continuous(breaks = c(0.1,0.15, 0.2), limits =c( 0.1, 0.2))+
+  ylab('Frequency of Motif')+
+  xlab('External Noise (σ)')+
+  guides(colour = guide_legend(nrow = 1,byrow = TRUE)) +
+  geom_point(aes( y = p , x = sd, col = motif), data =truth_log_probs ) +
+  theme(legend.position = "bottom",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0),
+        legend.box.margin = margin(0, 0, 0, 0),
+        legend.spacing.y = unit(0, "pt"),
+        legend.key.height = unit(8, "pt"),
+        legend.key.width = unit(12, "pt"))+
+  geom_hline(yintercept = 1/6, linetype = 'dashed') -> MotifPatternsFitPlot
+
+MotifPatternsFitPlot
+
+```
+
+## Combined figure
+
+```{r}
+demo2plot<- plot_grid(PE_ThroughTime_Trial, MotifPatternsFitPlot,
+                      nrow = 1, rel_widths = c(3,3),scale = 0.95, 
+                      labels = c('c)',' d)' ), align = 'h')
+
+saveRDS(demo2plot, "MS_figs/ggplot objects/demo2plot.rds")
+ggsave(demo2plot, filename = 'MS_figs/ggplot objects/demo2plot.png', width = 9, height =3  )
+
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```

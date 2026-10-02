@@ -1,0 +1,849 @@
+---
+title: "Fitting To Butterfly Data"
+author: "Chris Terry"
+date: "2026-07-09"
+output:
+  html_document:
+    toc: true
+  pdf_document:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+```{r message=FALSE, warning=FALSE}
+library(cmdstanr)
+library(posterior)
+library(statcomp)
+library(tidyverse)
+library(rpart)
+library(rpart.plot)
+library(cluster)
+library(factoextra)
+library(cowplot)
+library(patchwork)
+
+```
+
+# Loading Data
+
+## Motif data and Model Fits
+
+```{R}
+FullMotif_df <-read_csv('Butterfly Data/FullMotif_df.csv')
+
+read_butterfly_outputs <- function(suffix, model_label) {
+  
+  files <- list.files(  "Butterfly_fits",recursive = TRUE,full.names = TRUE)
+  expected_name <- paste0(model_label, "_", suffix)
+  files <- files[basename(files) == expected_name]
+  map_dfr(files, \(file) {
+    read_csv(file, show_col_types = FALSE) %>%
+      mutate(species = basename(dirname(file)))
+  })
+}
+
+model_label <- "period_sd_08_O2"
+
+pe_draws <- read_butterfly_outputs(suffix = "pe_effect_draws.csv", model_label)
+pars     <- read_butterfly_outputs("parameter_summary.csv", model_label)
+diag     <- read_butterfly_outputs("sampler_diagnostics.csv", model_label)
+time_lookup    <-  read_butterfly_outputs("time_lookup.csv", model_label)
+motif_fits    <-  read_butterfly_outputs("inferred_motif_frequencies.csv", model_label) 
+```
+
+## Butterfly Trait Data
+
+```{R}
+
+FocalSpNames = unique(pars$species) # names to match with
+
+traits_raw <- read_csv( "Butterfly Data/ButterflyTraits/data/ecological_traits_2024.csv",
+                        skip = 1 ) 
+# Update names to match UKBMS data 
+traits_clean_names <- traits_raw %>%
+  mutate(species = str_replace_all(scientific_name, "(_|\\s)", " "),
+         species = str_replace_all(species, "\xa0", " "),
+         species = case_when( species =="Lysandra bellargus"~ "Polyommatus bellargus" ,
+                              species =="Lysandra coridon" ~"Polyommatus coridon" ,
+                              species ==  "Colias crocea"~"Colias croceus",
+                              species == "Thymelicus sylvestris"~"Thymelicus lineola_sylvestris", # Copy Small Skipper traits
+                              TRUE ~ species))%>%
+  filter(species %in% FocalSpNames)
+
+# Occupancy within dataset
+FullMotif_df %>%
+  mutate( species = ifelse(Sp == 'Thymelicus lineola/sylvestris', 'Thymelicus lineola_sylvestris', Sp ))%>%
+  group_by(species)%>%
+  summarise(Num_sites_Occu_inData = n_distinct(Site)) -> DataOccupancy ## beware potential statistical circularity
+
+## Habitat Specificity, per Defra reports
+##  https://www.gov.uk/government/statistics/butterflies-in-the-wider-countryside-uk/butterflies-in-the-united-kingdom-and-in-england-1976-to-2024--2 
+
+HabitatSpecialism <- read_csv('Butterfly Data/HabitatSpecialism.csv')
+
+traits_clean_names$species 
+traits_clean_names  %>%
+  mutate(  univoltine = coalesce(obligate_univoltine == "1", FALSE)) %>%
+  select(species,  family ,
+         specificity, number_hostplants,
+         univoltine = obligate_univoltine,
+         abundance_trend,
+         woodland_specialist  = `1. Woodland`,
+         heathland_specialist = `2_heathland`,
+         grassland_specialist = `4_grassland`,
+         broadleaf_specialist = `1a_broadleaved_woodland`,
+         size = wing_span_maximum) %>%
+  mutate( specificity = ordered(specificity, levels = c("Monophagous", "Oligophagous (Genus)", 
+                                                        "Oligophagous (Family)", "Polyphagous")),
+          univoltine = !is.na(univoltine),
+          woodland_specialist   = !is.na(woodland_specialist  ),
+          heathland_specialist  = !is.na(heathland_specialist ),
+          grassland_specialist   = !is.na(grassland_specialist  ),
+          broadleaf_specialist  = !is.na(broadleaf_specialist ),
+          wider_countryside_generalist = !woodland_specialist & !heathland_specialist)%>%
+  left_join(DataOccupancy) -> traits
+```
+
+
+# PE Trends through time
+
+## Overall Trend
+
+```{r}
+species_precision <- pe_draws %>%
+  group_by(species) %>%
+  summarise(weight = 1 / var(pe_slope ), .groups = "drop")
+
+overall_trend_summary <- pe_draws %>%
+  inner_join(species_precision, by = "species") %>%
+  group_by(species) %>%
+  mutate(draw = row_number()) %>%
+  ungroup() %>%
+  group_by(draw) %>%
+  summarise(unweighted_mean = mean(pe_slope) ,
+            weighted_change = weighted.mean(pe_slope , weight),
+            .groups = "drop") 
+
+#### Unweighted trend
+overall_trend_summary %>%
+  summarise( Umean_change = mean(unweighted_mean),
+             Uq025 = quantile(unweighted_mean, 0.025),
+             Uq95 = quantile(unweighted_mean, 0.95),
+             Uq05 = quantile(unweighted_mean, 0.05),
+             Uq975 = quantile(unweighted_mean, 0.975),
+             Upr_increase = mean(unweighted_mean > 0))-> unweighted_overall_trend
+
+#### Trend Weighted by confidence
+overall_trend_summary %>%
+  summarise(w_mean_change = mean(weighted_change),
+            wq025 = quantile(weighted_change, 0.025),
+            wq95 = quantile(weighted_change, 0.95),
+            wq05 = quantile(weighted_change, 0.05),
+            wq975 = quantile(weighted_change, 0.975),
+            wpr_increase = mean(weighted_change > 0))-> weighted_overall_trend
+
+unweighted_overall_trend
+weighted_overall_trend
+```
+
+## Species individual trends through time
+
+### Species Linear Trends and Confidences (Fig. 3)
+
+```{R}
+Figure3_data<-pars %>%
+  filter( variable == 'pe_slope') %>%
+  left_join(traits, by = 'species') %>%
+  select( species, mean, q5, q95, family)%>%
+  arrange(family, desc(species)) %>%
+  bind_rows( data.frame(  species = 'Overall mean',
+                          mean   =  unweighted_overall_trend$Umean_change,
+                          q5 = unweighted_overall_trend$Uq05, 
+                          q95 = unweighted_overall_trend$Uq95, 
+                          family = 'Overall Mean' ))%>%
+  mutate( family = factor( family,
+                           levels = rev(c("Overall",
+                                          setdiff(unique(family), "Overall")))),  # Put Overall facet first
+          species_lab = if_else(species == "Overall mean",  # Replace "_" with "/ " and italicise species
+                                "<b>Overall mean</b>",
+                                paste0("<i>", gsub("_", "/", species), "</i>")),
+          species_lab = factor( species_lab, levels = unique(species_lab))) 
+
+
+Figure3_data%>%
+  ggplot(aes( y = species_lab, x = mean))+
+  geom_errorbarh(aes(xmin = q5, xmax = q95)) +
+  geom_point() +
+  geom_vline(xintercept = 0)+
+  theme_classic()+
+  scale_y_discrete(labels = identity) +
+  facet_grid(family~., scales = 'free_y', space = 'free_y',
+             labeller = labeller(family = function(x) ifelse(x == "Overall Mean", "", x)))+
+  xlab( 'Permutation Entropy Linear Slope\n(scaled time)')+
+  ylab( NULL)+
+  theme(axis.text.y = ggtext::element_markdown(),
+        strip.text.y = element_text(angle = 0),
+        strip.background = element_blank())
+
+ggsave( 'MS_Figs/Fig4_SpeciesPE_trends.png',height = 7, width =5, dpi = 300)
+
+```
+
+### Species PE through Time Plots (SI figure)
+
+```{R message=FALSE}
+
+pe_curves <- pars %>%
+  filter(str_starts(variable, "pe_population_time")) %>%
+  mutate( time_id = parse_number(variable),
+          series = "Population PE") %>%
+  left_join(select(time_lookup, species, time_id, YEAR, time_scaled),
+            by = c("species", "time_id"))
+```
+
+```{R}
+####
+# Adding best Fit line
+#####
+
+linear_fit <- pe_draws %>%
+  select(species, .draw, pe_intercept, pe_slope) %>%
+  left_join( time_lookup %>% select(species, time_id, YEAR, time_scaled),
+             by = "species", relationship = "many-to-many" ) %>%
+  mutate(pe = pe_intercept + pe_slope * time_scaled) %>%
+  group_by(species, time_id, YEAR, time_scaled) %>%
+  summarise(mean = mean(pe),
+            q5 = quantile(pe, 0.05),
+            q95 = quantile(pe, 0.95),
+            .groups = "drop") %>%
+  mutate(series = "Linear fit")
+
+pe_curves %>%
+  ggplot(aes(x = YEAR, y = mean)) +
+  geom_ribbon(aes(ymin = q5, ymax = q95), fill = 'red2',
+              alpha = 0.3, colour = NA) +
+  geom_line(colour = 'red2') +
+  geom_line( aes(x = YEAR, y = mean), colour = 'black', data = linear_fit) +
+  geom_ribbon(aes(ymin = q5, ymax = q95),
+              alpha = 0.1, colour = 'black', data = linear_fit) + 
+  facet_wrap(~species, ncol = 5) +
+  labs(x = "Year", y = "Expected Permutation Entropy") +
+  guides(colour = "none", fill = "none")+
+  coord_cartesian(ylim = c( NA,1))+
+  theme_classic()
+
+ggsave('MS_figs/SI_PEtrend_species.png', width =9, height =10)
+
+```
+
+Broadly, species that started with relatively low PE, became more random. 
+
+Many species did not have strong structuring, and not much scope for further change. 
+
+# Trait Drivers of Linear Trends: (SI Figure)
+
+## Data Amalgamation 
+
+```{r}
+pars %>%
+  filter( variable == 'pe_slope') %>%
+  left_join(traits) %>%
+  select(species,  PE_SLOPE = mean, family: Num_sites_Occu_inData)%>%
+  mutate( abund_perc = parse_number(abundance_trend)) -> slopes_traits
+
+filter(pars,  variable == 'pe_intercept') %>%
+  select(PE_INTERCEPT = mean, species ) -> PE_intercept
+
+left_join( slopes_traits,PE_intercept ) %>%
+  mutate( family = factor(family),
+          wider_countryside_generalist = factor(wider_countryside_generalist),
+          univoltine = factor(univoltine),
+          specificity = factor(specificity, ordered = FALSE)) ->slopes_traits
+```
+
+### Statistical Tests of 'Traits' versus Responses
+
+```{r}
+# Categorical predictors
+m_Generalist       <- lm(PE_SLOPE ~ wider_countryside_generalist, data = slopes_traits)
+m_Diet_specificity <- lm(PE_SLOPE ~ specificity,data = slopes_traits)
+m_Univoltine       <- lm(PE_SLOPE ~ univoltine,  data = slopes_traits)
+m_Family           <- lm(PE_SLOPE ~ family, data = slopes_traits)
+# Continuous predictors
+m_Size             <- lm(PE_SLOPE ~ size, data = slopes_traits)
+m_Site_occupancy   <- lm(PE_SLOPE ~ Num_sites_Occu_inData,data = slopes_traits)
+m_PE_intercept     <- lm(PE_SLOPE ~ PE_INTERCEPT,data = slopes_traits)
+m_Abundance_trend  <- lm(PE_SLOPE ~ abund_perc, data = slopes_traits)
+
+models <- list( m_Generalist,   m_Diet_specificity, m_Univoltine,m_Family,           
+                m_Size,m_Site_occupancy, m_PE_intercept,  m_Abundance_trend)
+
+names(models) <- c('Habitat Generalism',   'Diet specificity', 'Univoltine','Family',           
+                   'Size','Site occupancy', 'PE intercept',  'Abundance trend')
+
+overall_tests <- map_df(names(models),
+                        function(x) {
+                          a <- anova(models[[x]])
+                          s <- summary(models[[x]])
+                          data.frame( trait = x,
+                                      df = a$Df[1],
+                                        n = nobs(models[[x]]),
+                                      F.value = a$`F value`[1],
+                                      p.value = a$`Pr(>F)`[1],
+                                      R2 = s$r.squared,
+                                      adj_R2 = s$adj.r.squared)
+                        }) 
+
+### Make label for Plots:
+overall_tests <- overall_tests %>%
+  mutate( stat_label = sprintf( "F = %.2f, p = %s, R2 = %.2f",
+                                F.value,
+                                ifelse(p.value < 0.001, "< 0.001",
+                                                sprintf("%.3f", p.value)),
+                                R2))
+
+overall_tests
+```
+
+### Plots
+
+```{R}
+
+
+plot_1<-ggplot(slopes_traits,
+               aes( x = wider_countryside_generalist , y = PE_SLOPE) )+
+  geom_boxplot()+
+  xlab('Wider Countryside Generalist')
+
+plot_2<-ggplot(slopes_traits,
+               aes( x = specificity   , y = PE_SLOPE) )+
+  geom_boxplot()+
+  xlab('Diet Specificity')+
+  scale_x_discrete(labels = \(x) gsub(" \\(", "\n(", x))
+
+plot_3<-ggplot(slopes_traits,
+               aes( x = univoltine , y = PE_SLOPE) )+
+  geom_boxplot()+
+  xlab('Univoltine')
+
+plot_4<-ggplot(slopes_traits,
+               aes( x = family, y = PE_SLOPE) )+
+  geom_boxplot()+
+  xlab('Taxonomic Family')
+
+plot_5<-ggplot(slopes_traits,
+               aes( x = size, y = PE_SLOPE) )+
+  geom_smooth(method = 'lm')+geom_point()+
+  xlab('Average Size (Winglength)')
+
+plot_6<-ggplot(slopes_traits,
+               aes( x = Num_sites_Occu_inData, y = PE_SLOPE) )+
+  geom_smooth(method = 'lm')+geom_point()+
+  xlab('Site Occupancy in Dataset')
+
+plot_7<-ggplot(slopes_traits,
+               aes( x = PE_INTERCEPT , y = PE_SLOPE) )+
+  geom_smooth(method = 'lm')+geom_point()+
+  xlab('PE Intercept')
+
+plot_8<-ggplot(slopes_traits,
+               aes( x = abund_perc, y = PE_SLOPE) )+
+  geom_smooth(method = 'lm')+geom_point()+
+  xlab('UKBMS Overall Abundance Trend\n(1976-2023)\nPseudo-log Scaling')+
+  scale_x_continuous( trans = scales::pseudo_log_trans(sigma = 20),
+                      breaks = c(-100, -50, 0, 50, 100, 200, 500),
+                      labels = \(x) paste0(x, "%"))
+
+plot_grid(plot_1+theme_classic()+ylab('PE Slope')+ggtitle(label = overall_tests$trait[1], subtitle = overall_tests$stat_label[1]),
+          plot_2+theme_classic()+ylab('PE Slope')+ggtitle(label = overall_tests$trait[2], subtitle = overall_tests$stat_label[2]),
+          plot_3+theme_classic()+ylab('PE Slope')+ggtitle(label = overall_tests$trait[3], subtitle = overall_tests$stat_label[3]),
+          plot_4+theme_classic()+ylab('PE Slope')+ggtitle(label = overall_tests$trait[4], subtitle = overall_tests$stat_label[4]),
+          plot_5+theme_classic()+ylab('PE Slope')+ggtitle(label = overall_tests$trait[5], subtitle = overall_tests$stat_label[5]),
+          plot_6+theme_classic()+ylab('PE Slope')+ggtitle(label = overall_tests$trait[6], subtitle = overall_tests$stat_label[6]),
+          plot_7+theme_classic()+ylab('PE Slope')+ggtitle(label = overall_tests$trait[7], subtitle = overall_tests$stat_label[7]),
+          plot_8+theme_classic()+ylab('PE Slope')+ggtitle(label = overall_tests$trait[8], subtitle = overall_tests$stat_label[8]),
+          nrow =4, labels = c('a)','b)','c)','d)',
+                              'e)','f)','g)','h)'))
+
+ggsave('MS_figs/SI_SpeciesPredictors.png', width =8, height =12)
+
+```
+
+
+
+
+## Patterns of Motif shifts (Figure 5)
+
+```{r}
+pars %>%
+  filter( variable == 'pe_slope') %>%
+  arrange( desc(mean))
+
+strong_species <- c("Aphantopus hyperantus","Maniola jurtina", "Pyronia tithonus")
+focal_species<-strong_species
+
+motif_key <- tribble( ~motif, ~motif_label, ~motif_class,
+                      1L, "123", "Monotonic increase",
+                      2L, "213", "Local trough",
+                      3L, "312", "Local trough",
+                      4L, "132", "Local peak",
+                      5L, "231", "Local peak",
+                      6L, "321", "Monotonic decrease")
+
+motif_start_end <- motif_fits %>%
+  filter( str_starts(variable, 'theta_')) %>%
+  mutate(time_id = as.integer(str_match(variable, "\\[(\\d+),(\\d+)\\]")[, 2]),
+         motif   = as.integer(str_match(variable, "\\[(\\d+),(\\d+)\\]")[, 3]) ) %>%
+  left_join(time_lookup, by = c("time_id", 'species'))%>%
+  group_by(species, motif) %>%
+  filter(time_id %in% range(time_id)) %>%
+  mutate(stage = if_else(time_id == min(time_id), "Start", "End")) %>%
+  ungroup() %>%
+  left_join(motif_key, by = "motif") %>%
+  mutate(stage = factor(stage, levels = c("Start", "End")),
+         x = motif + if_else(stage == "Start", -0.16, 0.16))%>%
+  rename(  q5=`5%`, q95= `95%`)
+```
+
+```{R}
+motif_summary <- bind_rows(
+  # Focal species: retain model uncertainty
+  motif_start_end %>%
+    filter(species %in% strong_species) %>%
+    transmute( panel = species, stage,
+               motif,motif_label,motif_class,
+               mean,lower = q5, upper = q95),
+  
+  # All OTHER species: distribution across species
+  motif_start_end %>%
+    filter(!species %in% strong_species) %>%
+    group_by(stage, motif, motif_label, motif_class) %>%
+    summarise(lower = quantile(mean, 0.05, na.rm = TRUE),
+              estimate = mean(mean, na.rm = TRUE),
+              upper = quantile(mean, 0.95, na.rm = TRUE),
+              .groups = "drop" ) %>%
+    rename(mean = estimate) %>%
+    mutate(panel = "All other species"),
+  
+  # ALL species: distribution across species
+  motif_start_end %>%
+    group_by(stage, motif, motif_label, motif_class) %>%
+    summarise( lower = quantile(mean, 0.05, na.rm = TRUE),
+               estimate = mean(mean, na.rm = TRUE),
+               upper = quantile(mean, 0.95, na.rm = TRUE),
+               .groups = "drop"  ) %>%
+    rename(mean = estimate) %>%
+    mutate(panel = "All species")
+) %>%
+  mutate(stage = factor(stage, levels = c("Start", "End")),
+         panel = factor(  panel,
+                          levels = c( strong_species,
+                                      "All species", "All other species")),
+         # horizontal offset for start/end
+         x = motif + if_else(stage == "Start", -0.10, 0.10))
+```
+
+```{R}
+motif_cols <- c( "Monotonic increase" = "#4CAF65","Monotonic decrease" = "#F0AD32",
+                 "Local peak"         = "#DF6687","Local trough"       = "#4C81CF")
+
+plot_motif_panel <- function(dat, title) {
+  
+  is_summary <- title %in% c("All species", "All other species")
+  
+  lines <- dat %>%
+    select(motif, motif_class, stage, x, mean) %>%
+    tidyr::pivot_wider( names_from = stage, values_from = c(x, mean))
+  
+  p <- ggplot(dat, aes(x = x, y = mean)) +
+    geom_hline(yintercept = 1/6,
+               colour = "grey70", linetype = 2 ) +
+    geom_segment( data = lines,  # Start -> End connection
+                  aes( x = x_Start, xend = x_End, 
+                       y = mean_Start, yend = mean_End))
+  # Different interval geometry for the two panel types
+  if (is_summary) {
+    # Across-species 5--95% range:
+    # thicker, uncapped and slightly transparent
+    p <- p + geom_linerange(aes( ymin = lower, ymax = upper, colour = motif_class),
+                            linewidth = 0.8,alpha = 0.65)
+  } else {
+    # Focal-species model intervals:
+    # conventional capped error bars
+    p <- p + geom_errorbar(aes( ymin = lower, ymax = upper, colour = motif_class ),
+                           width = 0.25,linewidth = 0.6)
+  }
+  
+  p + geom_point(aes(colour = motif_class,shape = stage ),
+                 size = 2.6, stroke = 0.9) +
+    
+    scale_shape_manual(values = c( "Start" = 1, "End"   = 16), name = NULL) +
+    scale_colour_manual(values = motif_cols,name = "Motif type") +
+    scale_x_continuous(breaks = motif_key$motif, labels = motif_key$motif_label) +
+    coord_cartesian(ylim = c(0, 0.7)) +
+    labs( title = title,
+          x =NULL,#"Three-point ordinal motif",
+          y = NULL)+#"Estimated motif probability")
+    theme_classic() +
+    theme(plot.title = element_text( hjust = 0.5,
+                                     face = if (is_summary){"plain"}else{"italic"},
+                                     size = 10) )
+}
+
+```
+
+```{R}
+
+p_aph <- motif_summary %>%
+  filter(panel == "Aphantopus hyperantus") %>%
+  plot_motif_panel("Aphantopus hyperantus")
+
+p_man <- motif_summary %>%
+  filter(panel == "Maniola jurtina") %>%
+  plot_motif_panel("Maniola jurtina")
+
+p_pyr <- motif_summary %>%
+  filter(panel == "Pyronia tithonus") %>%
+  plot_motif_panel("Pyronia tithonus")
+
+p_all <- motif_summary %>%
+  filter(panel == "All species") %>%
+  plot_motif_panel("All species")
+
+p_other <- motif_summary %>%
+  filter(panel == "All other species") %>%
+  plot_motif_panel("All other species")
+
+legend <- cowplot::get_legend( p_aph + theme(legend.position = "bottom"))
+
+
+legend_panel <- ggdraw() + draw_grob(legend,  x = 0,  y = 0, width = 1, height = 0.75 )
+
+p_aph   <- p_aph   + theme(legend.position = "none")
+p_man   <- p_man   + theme(legend.position = "none")+
+  theme(axis.text.y  = element_blank(),axis.ticks.y = element_blank())
+p_pyr   <- p_pyr   + theme(legend.position = "none")+
+  theme(axis.text.y  = element_blank(),axis.ticks.y = element_blank())
+p_all   <- p_all   + theme(legend.position = "none")
+p_other <- p_other + theme(legend.position = "none")+
+  theme(axis.text.y  = element_blank(),axis.ticks.y = element_blank())
+
+plots <- (p_aph | p_man | p_pyr) /
+  (p_all | p_other | wrap_elements(legend_panel))
+
+
+final_plot5 <- ggdraw() +
+  draw_plot( plots, x = 0.06, y = 0.05, width = 0.95,height = 0.94 ) +
+  draw_label( "Estimated motif probability",
+              x = 0.012, y = 0.5,
+              angle = 90, vjust = 0.5,
+              size = 12 ) +
+  draw_label( "Three-point ordinal motif",
+              x = 0.5, y = 0.02, hjust = 0.5,
+              size = 12)
+
+final_plot5
+
+ggsave( 'MS_Figs/Figure 5.png', height = 4, width = 8)
+
+```
+
+# Hierarchical Terms Analysis
+
+Can years with motif consolidation be predicted from weather data?
+
+### Processing Climate Data
+
+```{r}
+###########
+# Temp
+##########
+ssn_HadCET_mean <- read_csv("Weather Data/cet_v2-1-1-0_meantemp-seasonal-totals.csv", 
+                            skip = 38) 
+baseline_means <- colMeans(filter(ssn_HadCET_mean,year >= 1961 & year <= 1990)[, 2:5], na.rm = TRUE)
+
+processed_temp <- ssn_HadCET_mean %>%
+  filter(year >= 1970) %>%            # Filter to match butterfly study range
+  mutate(spring_temp_anom = spring  - baseline_means["spring"], # Compute active-season anomalies from the baseline
+         summer_temp_anom = summer  - baseline_means["summer"],
+         prev_summer_temp_anom = lag(summer_temp_anom, 1)) %>%  # Create lag variables
+  select(Year=year, spring_temp_anom, summer_temp_anom, prev_summer_temp_anom)
+
+#############
+# Rainfall 
+##########
+HadSEEP_seasonal_totals <- read_table("Weather Data/HadSEEP_seasonal_totals.txt", skip = 2) ## read_table  collapses the variable width white spaces used by HadCET
+means_seep    <- colMeans(filter(HadSEEP_seasonal_totals, Year >= 1961 & Year <= 1990)[, c("Win", "Spr", "Sum")],
+                          na.rm = TRUE)
+
+processed_seep <- HadSEEP_seasonal_totals %>%
+  filter(Year >= 1980) %>%
+  mutate(winter_rain_anom = Win - means_seep["Win"], # Current season anomalies (deviation from 1961-1990 average)
+         spring_rain_anom = Spr - means_seep["Spr"],
+         summer_rain_anom = Sum - means_seep["Sum"]) %>%
+  mutate( prev_summer_rain_anom = lag(summer_rain_anom, 1) ) %>%
+  select(Year, winter_rain_anom, spring_rain_anom, 
+         summer_rain_anom, prev_summer_rain_anom)
+
+### Join and build lags
+butterfly_weather_drivers <- processed_temp %>%
+  left_join(processed_seep, by = "Year") %>%
+  arrange(Year)%>%
+  filter( Year>=1980)# 2. Previous summer's rainfall
+
+```
+
+
+### Calculating Communty Average Deviations
+
+```{R}
+TimeLookup <- data.frame(time_id = 1:43,  Year =1980:2022 )
+
+#Isolate both the raw entropy AND the smooth population trend profiles
+extracted_entropy <- pars %>%
+  filter(str_detect(variable, "pe_period_time|pe_population_time")) %>%
+  mutate( time_id = as.integer(str_extract(variable, "\\d+")),  # Extract the 'g' time grid index out of the brackets
+          type = if_else(str_detect(variable, "population"), "trend_baseline", "realized_period")) %>%  # Classify whether the row is the trend or the realisation
+  select(Sp=species, time_id, type, mean) %>%
+  pivot_wider(names_from = type, values_from = mean) %>%
+  left_join(TimeLookup, by = "time_id")
+
+# Standardise the residuals WITHIN each species across time
+standardised_shocks <- extracted_entropy  %>%
+  mutate(residual_PE = realized_period - trend_baseline  ) %>%# shared period-specific PE departure
+  group_by(Sp) %>%
+  mutate(mean_residual = mean(residual_PE, na.rm = TRUE), ## Centre the residuals on their historical average 
+         sd_residual   = sd(residual_PE, na.rm = TRUE),
+         pe_zscore = (residual_PE - mean_residual) / sd_residual   ) %>%# DETRENDED Z-SCORE: How unusual is this year relative to the species' expected trend?
+  ungroup()
+
+# Group by YEAR to find true community-wide anomalies
+community_weather_analysis <- standardised_shocks %>%
+  group_by(Year) %>%
+  summarise(avg_community_zscore    = mean(pe_zscore, na.rm = TRUE),
+            sd_community_zscore     = sd(pe_zscore, na.rm = TRUE),
+            pct_species_below_avg   = sum(pe_zscore < 0) / n() * 100   ) %>%   # % of species where entropy dropped lower than their own average
+  arrange(desc(abs(avg_community_zscore )))  # Rank by the most unbalaneced set of species 
+
+print(community_weather_analysis)
+
+```
+
+### Does weird weather predict deviations?
+
+```{r}
+
+final_analysis_df <- community_weather_analysis %>%
+  left_join(butterfly_weather_drivers, by = "Year")
+
+
+timeline_combined_df  <- final_analysis_df %>%
+  mutate(z_spring_temp = (spring_temp_anom - mean(spring_temp_anom, na.rm = TRUE)) / sd(spring_temp_anom, na.rm = TRUE),  # Standardise Temp Anomaly
+         z_summer_temp = (summer_temp_anom - mean(summer_temp_anom, na.rm = TRUE)) / sd(summer_temp_anom, na.rm = TRUE),
+         
+         z_summer_rain = (summer_rain_anom - mean(summer_rain_anom, na.rm = TRUE)) / sd(summer_rain_anom, na.rm = TRUE),  # Standardise  Rain Anom
+         z_spring_rain = (spring_rain_anom - mean(spring_rain_anom, na.rm = TRUE)) / sd(spring_rain_anom, na.rm = TRUE))
+
+### rescaling axis
+max_weather <- max(c(timeline_combined_df$z_spring_temp,
+                     timeline_combined_df$z_summer_temp,
+                     timeline_combined_df$z_summer_rain), na.rm = TRUE)
+min_weather <- min(c(timeline_combined_df$z_spring_temp, 
+                     timeline_combined_df$z_summer_temp, 
+                     timeline_combined_df$z_summer_rain), na.rm = TRUE)
+
+max_pe <- max(timeline_combined_df$avg_community_zscore, na.rm = TRUE)
+min_pe <- min(timeline_combined_df$avg_community_zscore, na.rm = TRUE)
+
+# This compression factor shrinks the weather lines so they fit into the PE frame in the ggplot
+compress_factor <- (max_pe - min_pe) / (max_weather - min_weather)
+
+ggplot(timeline_combined_df, aes(x = Year)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey70") +
+  annotate("rect", xmin = 1997.5, xmax = 2000.5, ymin = min_pe - 0.1, ymax = max_pe + 0.1, alpha = 0.2, fill =  "orange") +
+  annotate("rect", xmin = 2002.5, xmax = 2003.5, ymin = min_pe - 0.1, ymax = max_pe + 0.1, alpha = 0.2, fill ="darkred") +
+  annotate("rect", xmin = 2010.5, xmax = 2012.5, ymin = min_pe - 0.1, ymax = max_pe + 0.1, alpha = 0.2, fill = "dodgerblue") +
+  
+  geom_line(aes(y = z_spring_temp * compress_factor, color = "Spring Temp Anomaly"), linewidth = 0.7) +
+  geom_line(aes(y = z_summer_temp * compress_factor, color = "Summer Temp Anomaly"), linewidth = 0.7) +
+  geom_line(aes(y = z_summer_rain * compress_factor, color = "Summer Rain Anomaly"), linewidth = 0.7) +
+  geom_line(aes(y = z_spring_rain * compress_factor, color = "Spring Rain Anomaly"), linewidth = 0.7) +
+  
+  geom_line(aes(y = avg_community_zscore, color = "Community PE Z-Score"), linewidth = 1.3) +
+  geom_point(aes(y = avg_community_zscore, color = "Community PE Z-Score"), size = 2.2) +
+  
+  scale_y_continuous( name = "PE Deviation\n(Community Average Z-Score)",
+                      limits = c(min_pe - 0.1, max_pe + 0.1),
+                      sec.axis = sec_axis(~ . / compress_factor,
+                                          name = "Weather Variable Anomalies\n(Z-score Over Time Period)")) +
+  scale_x_continuous(n.breaks = 11)+
+  scale_color_manual(name = NULL,
+                     values = c(  "Community PE Z-Score" = "black",
+                                  "Spring Temp Anomaly"  = "orange", "Summer Temp Anomaly"  = "red",
+                                  "Summer Rain Anomaly"  = "blue",  "Spring Rain Anomaly" = 'lightblue')) +
+  
+  labs( x = "Year",
+        # title = "Overlaid Timelines of Community Structure and Local Climate Drivers",
+        #subtitle = "Shaded regions higlight unusual periods"
+  ) +
+  theme_minimal() +
+  theme( legend.position = "bottom",
+         panel.grid.minor = element_blank(),
+         plot.title = element_text(face = "bold", size = 12),
+         axis.title.y.left = element_text(color = "black"),
+         axis.title.y.right = element_text(color = "grey30"), 
+         legend.text = element_text(size = 8),
+         legend.spacing.x = unit(0.15, "cm")) -> Fig5a
+
+Fig5a
+
+```
+
+## Motif shifts in most extreme years
+
+```{R}
+#  Load the raw event data and filter for our two focal years
+## includes all species. NB will be weigthed by number of time series for each species
+raw_events <- FullMotif_df %>%
+  filter(YEAR %in% c(2011, 2003)) %>%
+  mutate(YEAR = factor(YEAR))
+
+# Calculate the empirical proportions of each motif within each year
+motif_proportions <- raw_events %>%
+  count(YEAR, Motif, name = "count") %>%
+  group_by(YEAR) %>%
+  mutate(proportion = count / sum(count)) %>%
+  ungroup() %>%
+  left_join(motif_key, by = c('Motif' ="motif"))
+
+FullMotif_df %>%
+  count(Motif, name = "count") %>%
+  mutate(YEAR = 'All',
+         proportion = count / sum(count)) %>%
+  left_join(motif_key, by = c('Motif' ="motif")) -> OverallProp
+
+bind_rows(motif_proportions,
+          OverallProp) %>%
+  mutate(YEAR = factor(YEAR, levels = c("All", "2003", "2011"))) %>%
+  ggplot(aes(x = Motif, y = proportion, fill = YEAR)) +
+  scale_x_continuous( breaks = motif_key$motif,labels = motif_key$motif_label )+
+  geom_col(position = position_dodge(width = 0.8), width = 0.7, color = "black") +
+  scale_fill_manual(values = c("2003" = "red", 
+                               "2011" = "skyblue",
+                               "All"  = "grey"),
+                    labels = c( "2003" = "2003","2011" = "2011","All"  = "1980–2022"), 
+                    name = NULL)+ 
+  ylab('Observed Motif Frequency\n(All Species and Sites)')+
+  xlab('Motif' )+
+  theme_classic()+
+  # theme(legend.position = "inside",
+  #   legend.position.inside = c(0.98, 0.98),
+  #   legend.justification = c(1, 1))+
+  theme(legend.position = "bottom")-> Fig5c
+
+Fig5c
+
+```
+
+## Which Years Show Deviations?
+
+```{r}
+final_analysis_df %>%
+  ggplot(aes( x = spring_temp_anom,
+              y = summer_rain_anom,
+              colour = avg_community_zscore)) +
+  geom_hline(yintercept = 0, colour = "grey75") +
+  geom_vline(xintercept = 0, colour = "grey75") +
+  geom_point(aes(size = abs(avg_community_zscore)>0.45))+
+  geom_text(data = \(x) filter(x, abs(avg_community_zscore) > 0.45),
+            aes(label = Year),
+            colour ='black', size = 3, nudge_y = 5, show.legend = FALSE) +
+  scale_colour_gradient2(low = "#2166AC",mid = "grey80",high = "#B2182B",
+                         midpoint = 0 ) +
+  scale_size_manual( values = c( `FALSE` = 2, `TRUE`  = 4))+
+  labs(x = "Spring temperature anomaly (°C)",
+       y = "Summer rainfall anomaly (mm)",
+       # size = "|PE deviation|",
+       colour = "Mean PE\ndeviation") +
+  guides(size = "none") +
+  theme_classic()+
+  theme(legend.position = "bottom") -> Fig5b
+
+Fig5b
+```
+
+## Building Figure 5
+
+```{R}
+
+Fig5b <- Fig5b +
+  guides(colour = guide_colourbar( title.position = "left",
+                                   barwidth = unit(3, "cm"),
+                                   barheight = unit(0.3, "cm")) ) +
+  theme(legend.title = element_text(size = 8),
+        legend.text = element_text(size = 7),
+        legend.margin = margin(0, 0, 0, 0) )
+
+Fig5c <- Fig5c + guides(fill = guide_legend(nrow = 1,
+                                            keywidth = unit(0.45, "cm"),
+                                            keyheight = unit(0.45, "cm"))) +
+  theme( legend.text = element_text(size = 8),
+         legend.key.size = unit(0.45, "cm"),
+         legend.spacing.x = unit(0.15, "cm"),
+         legend.margin = margin(0, 0, 0, 0))
+
+
+bottom <- Fig5b + Fig5c +
+  plot_layout(widths = c(1.5, 1))
+
+Fig5_all <- Fig5a / bottom +
+  plot_layout(heights = c(0.8, 1)) +
+  plot_annotation(tag_levels = "a", tag_suffix = ")") &
+  theme( plot.tag = element_text(face = "bold", size = 12))
+
+Fig5_all
+
+ggsave( 'MS_Figs/Figure5.png', height = 6, width = 8)
+
+```
+
+### Testing a regression tree model
+
+Key problem, weird weather can cause species to converge, or to split in their dynamics. 
+Regression tree to see if there is any predictive information in these weather variables
+
+```{r}
+tree_data <- final_analysis_df %>%
+  select(Year, avg_community_zscore, 
+         spring_temp_anom:prev_summer_rain_anom )
+
+# Fit a  Regression Tree (maxdepth = 3 and minsplit = 8 to limit overfitting)
+pe_tree <- rpart(avg_community_zscore ~ spring_temp_anom + summer_temp_anom + 
+                   winter_rain_anom + summer_rain_anom+
+                   prev_summer_rain_anom,
+                 data = tree_data,
+                 method = "anova", # Tells rpart to run a regression tree for continuous data
+                 control = rpart.control(maxdepth = 3, minsplit = 8, cp = 0.05))
+
+print(pe_tree)
+
+# extra = 101 displays the average Z-score and the % of years falling into that bin
+rpart.plot(pe_tree, type = 4, extra = 101, 
+           fallen.leaves = TRUE, box.palette = "RdBu", # Red for positive spikes, Blue for negative drops
+           shadow.col = "grey90",main = "Climatic Thresholds Governing Community Entropy Z-Scores")
+
+summary(pe_tree)
+printcp(pe_tree)
+
+```
+
+
+# Session Info
+
+```{r}
+sessionInfo()
+
+```
+
+

@@ -1,0 +1,226 @@
+{
+"@context": "https://w3id.org/ro/crate/1.2/context",
+"@graph": [
+{
+"@type": "CreativeWork",
+"@id": "ro-crate-metadata.json",
+"conformsTo": { "@id": "https://w3id.org/ro/crate/1.2" },
+"about": { "@id": "https://catalogue.ceh.ac.uk/id/4cf966ef-4d8e-48de-8368-3a68faf6fbbf" }
+},
+{
+"@type":"Dataset",
+"name":"United Kingdom Butterfly Monitoring Scheme: species trends 2024",
+"@id": "https://catalogue.ceh.ac.uk/id/4cf966ef-4d8e-48de-8368-3a68faf6fbbf",
+"identifier": {"@id": "https://doi.org/10.5285/4cf966ef-4d8e-48de-8368-3a68faf6fbbf"},
+"citation":"Botham, M.S., Middlebrook, I., Heywood, J., Harrower, C.A., Milborrow, J., Roy, D.B. (2025). United Kingdom Butterfly Monitoring Scheme: species trends 2024. NERC EDS Environmental Information Data Centre. (Dataset). https://doi.org/10.5285/4cf966ef-4d8e-48de-8368-3a68faf6fbbf",
+"hasPart": [
+{"@id":
+"data/ukbmsspeciestrends2024.csv"
+} ,
+{"@id":
+"supporting-documents/ukbms_species_trends_2024.docx"
+} ],
+"description":"This dataset provides linear trends, over varying time periods, for the Collated Indices of individual butterfly species across the UK. The main statistical values derived from a linear regression (slope, standard error, P-value) are presented for the entire time series for each species (1976# to 2024), for the last 20 years, and for the last decade. In addition, trends are classified based on the direction and significance of a linear slope together with an estimated percentage change for that time period. These trend data are provided for all UK butterfly species for which we have sufficient data (58 species). Trends are calculated by performing a linear regression on the annual Collated indices for each species. Collated indices are calculated using a log-linear model incorporating individual site indices from all monitored sites across the UK for a given species in a given year. Trends across different time series allow us to determine the long and short-term status of individual species. This is enables us to focus conservation and research and also to assess species responses to conservation already in place. The UK Butterfly Monitoring Scheme is organized and funded by Butterfly Conservation (BC), the UK Centre for Ecology & Hydrology (UKCEH), the British Trust for Ornithology (BTO), and the Joint Nature Conservation Committee (JNCC). The UKBMS is indebted to all volunteers who contribute data to the scheme. This work was supported by the Natural Environment Research Council award number NE/R016429/1 as part of the UK-SCAPE programme delivering National Capability. #Because the Collated indices are only calculated for each species in years in which it was recorded on five or more sites, the starting year for the series is later than 1976 for a number of rarer species.",
+"isAccessibleForFree": true,
+"datePublished":"2025-12-17",
+"keywords": [
+"annual"
+,
+"BReVI"
+,
+"butterflies"
+,
+"England"
+,
+"Lepidoptera"
+,
+"Northern Ireland"
+,
+"Scotland"
+,
+"Uinited Kingdom"
+,
+"Wales"
+,
+{"@type": "DefinedTerm","@id": "http://onto.nerc.ac.uk/CEHMD/topic/2","name": "Biodiversity" }
+],
+"creator": [
+{"@id": "https://orcid.org/0000-0002-5276-1405"},
+{"@id": "https://orcid.org/0000-0002-0448-9144"},
+{"@id": "#creator2"},
+{"@id": "https://orcid.org/0000-0001-5070-5293"},
+{"@id": "#creator4"},
+{"@id": "http://orcid.org/0000-0002-5147-0331"}
+],
+"temporalCoverage":[
+"2024-01-01/2024-12-31" ],
+"spatialCoverage": [ {"@id": "#bbox0"}],
+"funding": [{"@id": "#fund0"}
+],
+"license": "https://eidc.ac.uk/licences/ogl-ukbms/plain",
+"distribution": [ {"@id": "#distribution0"}],
+"publisher":{"@id":"https://ror.org/04xw4m193"},
+"provider" : {"@id":"https://ror.org/04xw4m193"},
+"includedInDataCatalog":{ "@id": "#eidc-dataCatalogue"}
+},
+{
+"@id": "#eidc-dataCatalogue",
+"@type":"DataCatalog",
+"name":"Environmental Information Data Centre",
+"alternateName":"EIDC",
+"url":"https://catalogue.ceh.ac.uk/eidc/documents"
+},
+{
+"@id": "https://ror.org/04xw4m193",
+"@type":"Organization",
+"name":"NERC EDS Environmental Information Data Centre",
+"email": "info@eidc.ac.uk"
+}
+,{
+"@id": "https://spdx.org/licenses/OGL-UK-3.0",
+"@type": "CreativeWork",
+"name": "Open Government Licence v3",
+"alternateName":"OGL-UK-3.0",
+"sameAs": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/"
+}
+,{
+"@id": "https://doi.org/10.5285/4cf966ef-4d8e-48de-8368-3a68faf6fbbf",
+"@type":"PropertyValue",
+"propertyID": "https://registry.identifiers.org/registry/doi",
+"value": "10.5285/4cf966ef-4d8e-48de-8368-3a68faf6fbbf",
+"url": "https://doi.org/10.5285/4cf966ef-4d8e-48de-8368-3a68faf6fbbf"
+}
+, {
+"@id": "#bbox0",
+"@type":"Place",
+"geo": {
+"@id": "#geoshape0"
+}
+},
+{
+"@id": "#geoshape0",
+"@type": "GeoShape",
+"box":"-8.648 49.864, 1.768 60.861"
+}
+,
+{
+"@id": "https://orcid.org/0000-0002-5276-1405",
+"@type": "Person",
+"name": "Botham, M.S."
+, "familyName": "Botham"
+, "givenName": "Marc S"
+,"email": "enquiries@ceh.ac.uk"
+,"affiliation":{
+"@id": "https://ror.org/00pggkr55"
+}
+},
+{
+"@id": "https://orcid.org/0000-0002-0448-9144",
+"@type": "Person",
+"name": "Middlebrook, I."
+, "familyName": "Middlebrook"
+, "givenName": "Ian"
+,"email": "imiddlebrook@butterfly-conservation.org"
+,"affiliation":{
+"@id": "https://ror.org/05jg03a59"
+}
+},
+{
+"@id": "#creator2",
+"@type": "Person",
+"name": "Heywood, J."
+, "familyName": "Heywood"
+, "givenName": "James"
+,"email": "james.heywood@bto.org"
+,"affiliation":{
+"@id": "https://ror.org/03w54w620"
+}
+},
+{
+"@id": "https://orcid.org/0000-0001-5070-5293",
+"@type": "Person",
+"name": "Harrower, C.A."
+, "familyName": "Harrower"
+, "givenName": "Colin A"
+,"email": "enquiries@ceh.ac.uk"
+,"affiliation":{
+"@id": "https://ror.org/00pggkr55"
+}
+},
+{
+"@id": "#creator4",
+"@type": "Person",
+"name": "Milborrow, J."
+, "familyName": "Milborrow"
+, "givenName": "Jo"
+,"email": "jmilborrow@butterfly-conservation.org"
+,"affiliation":{
+"@id": "https://ror.org/05jg03a59"
+}
+},
+{
+"@id": "http://orcid.org/0000-0002-5147-0331",
+"@type": "Person",
+"name": "Roy, D.B."
+, "familyName": "Roy"
+, "givenName": "David B"
+,"email": "enquiries@ceh.ac.uk"
+,"affiliation":{
+"@id": "https://ror.org/00pggkr55"
+}
+}
+, {
+"@id": "#fund0",
+"@type": "MonetaryGrant"
+,"funder": {"@id": "https://ror.org/02b5d8509"}
+}
+,{
+"@id": "https://ror.org/02b5d8509",
+"@type": "Organization"
+,"name": "Natural Environment Research Council"
+}
+, {
+"@id":
+"data/ukbmsspeciestrends2024.csv"
+,"name": "ukbmsspeciestrends2024.csv","@type": "File"
+,"encodingFormat": "text/csv"
+,"sha256": "3503c985c36073e6c93115aafbf98ff1dbd49db68f8e444974e9cb44cbc9ed5f"
+,"lastModified": "2025-12-17T15:17:53"
+,"bytes": 9615
+,"contentUrl": "data/ukbmsspeciestrends2024.csv"
+}
+, {
+"@id":
+"supporting-documents/ukbms_species_trends_2024.docx"
+,"name": "ukbms_species_trends_2024.docx","@type": "File"
+,"sha256": "40d951f4cfde035e9b042079718f4c5d17bc3800df0a1a8d76b7e903e94f260e"
+,"lastModified": "2025-12-17T15:17:46"
+,"bytes": 25422
+,"contentUrl": "supporting-documents/ukbms_species_trends_2024.docx"
+}
+, {
+"@id": "#distribution0",
+"@type":"DataDownload",
+"contentUrl":"https://data-package.ceh.ac.uk/data/4cf966ef-4d8e-48de-8368-3a68faf6fbbf"
+,"encodingFormat":"application/zip"
+}
+, {
+"@id": "https://ror.org/00pggkr55",
+"@type": "Organization",
+"name": "UK Centre for Ecology & Hydrology",
+"identifier": "https://ror.org/00pggkr55"
+},
+{
+"@id": "https://ror.org/05jg03a59",
+"@type": "Organization",
+"name": "Butterfly Conservation",
+"identifier": "https://ror.org/05jg03a59"
+},
+{
+"@id": "https://ror.org/03w54w620",
+"@type": "Organization",
+"name": "British Trust for Ornithology",
+"identifier": "https://ror.org/03w54w620"
+}
+]
+}

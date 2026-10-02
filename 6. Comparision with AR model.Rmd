@@ -1,0 +1,269 @@
+---
+title: "6_AR model"
+author: "Chris Terry"
+date: "2026-08-18"
+output: html_document
+---
+
+
+# Introduction 
+
+This document runs a set of comparative AR models, to compare other routes to identifying changes in predictability through time. 
+
+```{r}
+library(lme4)
+library(tidyverse)
+set.seed(1)
+```
+
+
+## Load Data 
+
+```{R}
+FiltDf_Compact <- read_csv('Butterfly Data/FiltDf_Compact.csv')
+```
+
+## Load and process PE Fits 
+
+
+```{R}
+read_butterfly_outputs <- function(suffix, model_label) {
+  files <- list.files(  "Butterfly_fits",recursive = TRUE,full.names = TRUE)
+  expected_name <- paste0(model_label, "_", suffix)
+  files <- files[basename(files) == expected_name]
+  map_dfr(files, \(file) {
+    read_csv(file, show_col_types = FALSE) %>%
+      mutate(species = basename(dirname(file)))
+  })
+}
+
+model_label <- "period_sd_08_O2"
+pars     <- read_butterfly_outputs("parameter_summary.csv", model_label)
+
+SpeciesToUse <- unique(pars$species)
+```
+
+## Prep AR(2) DATA
+```{R}
+ar_data <- FiltDf_Compact %>%
+  mutate(SPECIES = recode(SPECIES,
+                          "Thymelicus lineola/sylvestris"  =   "Thymelicus lineola_sylvestris" )) %>%
+  arrange(SPECIES, Site_Name, YEAR)  %>%
+  filter( SPECIES %in% SpeciesToUse) %>%
+  group_by(SPECIES, Site_Name) %>%
+  mutate( z = as.numeric(scale(log1p(SITE_INDEX))),
+          lag1 = lag(z, 1),
+          lag2 = lag(z, 2),
+          abundance_lag1 = lag(SITE_INDEX,1),  #  for checking not all zero
+          abundance_lag2 = lag(SITE_INDEX,2),
+          consecutive1 = YEAR - lag(YEAR, 1) == 1,
+          consecutive2 = YEAR - lag(YEAR, 2) == 2 ) %>%
+  ungroup() %>%
+  filter(consecutive1, consecutive2, complete.cases(z, lag1, lag2)) %>% # Require all three observations to be consecutive years
+  filter(!(SITE_INDEX == 0 & abundance_lag1 == 0 & abundance_lag2 == 0)) %>% ## remove all zero cases
+  mutate(  time_scaled = (YEAR - min(YEAR)) /
+             (max(YEAR) - min(YEAR))) 
+```
+
+# Function to fit one species
+
+```{r}
+fit_ar_species <- function(d,n_draws = 4000) {
+  
+  terms <- c("lag1","lag2","time_scaled:lag1","time_scaled:lag2")
+  
+  # Common lag covariance for all models
+  lag_cov <- cov(d[,c("lag1","lag2")],use = "complete.obs")
+  predicted_variance <- function(phi1,phi2) {
+    phi1^2*lag_cov[1,1] + phi2^2*lag_cov[2,2] +
+      2*phi1*phi2*lag_cov[1,2]
+  }
+  
+  # Convert coefficient draws to start/end variance-based AR predictability value
+  # coefficient uncertainty is propagated by sampling from their estimated MVnorm.
+  
+  calculate_predictability <- function(b,V,residual_var,model_name) {
+    
+    draws <- MASS::mvrnorm(n = n_draws,mu = b,Sigma = V)
+    
+    phi1_start <- draws[,"lag1"]
+    phi2_start <- draws[,"lag2"]
+    phi1_end <- draws[,"lag1"] + draws[,"time_scaled:lag1"]
+    phi2_end <- draws[,"lag2"] + draws[,"time_scaled:lag2"]
+    
+    pred_start <- predicted_variance(phi1_start,phi2_start)
+    pred_end <- predicted_variance(phi1_end,phi2_end)
+    
+    ar_start <- pred_start/(pred_start + residual_var)
+    ar_end <- pred_end/(pred_end + residual_var)
+    
+    tibble(species = unique(d$SPECIES),model = model_name,draw = seq_len(n_draws),
+           ar_start = ar_start,ar_end = ar_end,ar_loss = ar_start-ar_end)
+  }
+  
+  # 1. Pooled AR(2) ---------------------------------------------------------
+  fit_pooled <- lm(z ~ time_scaled*(lag1 + lag2),data = d)
+  b <- coef(fit_pooled)[terms]
+  V <- sandwich::vcovCL(fit_pooled,cluster = ~ Site_Name + YEAR,
+                        type = "HC1")[terms,terms]
+  dr_pooled <- calculate_predictability(b,V,sigma(fit_pooled)^2,"Pooled")
+  
+  # 2. Add shared year effects ---------------------------------------------
+  fit_year <- lmer(z ~ time_scaled*(lag1 + lag2) +
+                     (1 | year_id),data = d,REML = FALSE)
+  b <- fixef(fit_year)[terms]
+  V <- as.matrix(vcov(fit_year))[terms,terms]
+  dr_year <- calculate_predictability(b,V,sigma(fit_year)^2,"Year effect")
+  
+  # 3. Add site-specific AR effects ----------------------------------------
+  fit_site <- lmer(z ~ time_scaled*(lag1 + lag2) +
+                     (0 + lag1 | Site_Name) +
+                     (0 + lag2 | Site_Name),
+                   data = d,REML = FALSE)
+  b <- fixef(fit_site)[terms]
+  V <- as.matrix(vcov(fit_site))[terms,terms]
+  dr_site <- calculate_predictability(b,V,sigma(fit_site)^2,"Site AR effects")
+  
+  # 4. Full hierarchical model ---------------------------------------------
+  fit_full <- lmer(z ~ time_scaled*(lag1 + lag2) +
+                     (0 + lag1 | Site_Name) +
+                     (0 + lag2 | Site_Name) +
+                     (1 | year_id),
+                   data = d,REML = FALSE)
+  b <- fixef(fit_full)[terms]
+  V <- as.matrix(vcov(fit_full))[terms,terms]
+  dr_full <- calculate_predictability(b,V,sigma(fit_full)^2,"Full hierarchical")
+  
+  # Combine draws
+  draw_results <- bind_rows(dr_pooled,dr_year,dr_site,dr_full)
+  
+  # Species summaries
+  summary_results <- draw_results %>%
+    group_by(species,model) %>%
+    summarise(n_obs = nrow(d),n_sites = n_distinct(d$Site_Name),
+              ar_start = mean(ar_start),ar_end = mean(ar_end),
+              ar_loss_q05 = quantile(ar_loss,0.05),
+              ar_loss_q95 = quantile(ar_loss,0.95),
+              mean_ar_loss = mean(ar_loss),.groups = "drop") %>%
+    rename(ar_loss = mean_ar_loss) %>%
+    mutate(singular = case_when(  model == "Pooled" ~ FALSE,
+      model == "Year effect" ~ isSingular(fit_year),
+      model == "Site AR effects" ~ isSingular(fit_site),
+      model == "Full hierarchical" ~ isSingular(fit_full)))
+  
+  return(list(summary = summary_results,draws = draw_results))
+}
+
+```
+
+# Fit Across all species
+
+```{R}
+ar_fits <- ar_data %>%
+  mutate(year_id = factor(YEAR)) %>%
+  group_split(SPECIES) %>%
+  map(fit_ar_species)
+
+ar_results <- ar_fits %>%
+  map_dfr("summary")
+
+ar_draws <- ar_fits %>%
+  map_dfr("draws")
+
+```
+
+# Inspect Results
+
+```{R}
+ar_results %>%
+  arrange(desc(ar_loss))
+
+# How many species show decreases/increases?
+ar_results %>%
+  group_by(model) %>%
+  summarise( n = n(),
+             mean_loss = mean(ar_loss),
+             median_loss = median(ar_loss),
+             
+             n_decline = sum(ar_loss > 0),
+             n_increase = sum(ar_loss < 0),
+             
+             n_clear_decline = sum(ar_loss_q05 > 0),
+             n_clear_increase = sum(ar_loss_q95 < 0))
+```
+
+```{r}
+overall_ar_draws <- ar_draws %>%
+  group_by(model,draw) %>%
+  summarise(ar_start = mean(ar_start),
+            ar_end = mean(ar_end),
+            ar_loss = mean(ar_loss),.groups = "drop")
+
+overall_ar <- overall_ar_draws %>%
+  group_by(model) %>%
+  summarise(ar_start = mean(ar_start),ar_end = mean(ar_end),
+            ar_loss_q05 = quantile(ar_loss,0.05),
+            ar_loss_q95 = quantile(ar_loss,0.95),
+            mean_ar_loss = mean(ar_loss),.groups = "drop") %>%
+  rename(ar_loss = mean_ar_loss)
+
+overall_ar
+
+```
+
+# Compare with PE 
+
+```{R}
+pe_change <- pars %>%
+  filter(variable == "pe_slope") %>%
+  transmute(species,pe_change = mean,
+            pe_q05 = q5,pe_q95 = q95)
+
+```
+
+```{R}
+comparison <- pe_change %>%
+  left_join(ar_results,by = "species")
+
+spearmans<- comparison %>%
+  group_by(model) %>%
+  summarise(n = sum(complete.cases(pe_change,ar_loss)),
+            rho_vs_PE = cor(pe_change,ar_loss,method = "spearman",
+                      use = "complete.obs"),
+            p_value = cor.test(pe_change,ar_loss,
+                               method = "spearman",
+                               exact = FALSE)$p.value )
+
+
+left_join(overall_ar,spearmans ) %>%
+  knitr::kable(digits = 3)
+
+
+
+```
+
+### Plotting
+```{R}
+ggplot(comparison,
+       aes(x = ar_loss,y = pe_change)) +
+  geom_hline(yintercept = 0,colour = "grey75") +
+  geom_vline(xintercept = 0,colour = "grey75") +
+  # PE uncertainty
+  geom_errorbar(aes(ymin = pe_q05,ymax = pe_q95),width = 0) +
+  # AR uncertainty
+  geom_errorbarh(aes(xmin = ar_loss_q05,xmax = ar_loss_q95),height = 0) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", colour = "blue", linewidth = 0.6) +
+  labs(x = "Loss of AR(2) predictability",
+       y = "Change in permutation entropy") +
+  theme_classic()+
+  facet_wrap(~model)
+
+```
+
+# Session Info  
+
+```{R}
+sessionInfo()
+
+```

@@ -1,0 +1,390 @@
+---
+title: "Multi-site hierarchical PE modelling"
+author: "Chris Terry"
+date: "2026-06-10"
+output: 
+  html_document: 
+    toc: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r message=FALSE, warning=FALSE}
+library(cmdstanr)
+library(posterior)
+library(statcomp)
+library(tidyverse)
+library(cowplot)
+
+source("R/pe_data_generation.R")
+source("R/pe_model_postprocess.R")
+source("R/pe_prior_calibration.R")
+
+multi_site_model <- cmdstan_model("stan/core_03_multisite_linear_pe_trend_Optimised.stan")
+
+```
+
+# Introduction
+
+This document demonstrates the ability for the heierarchical (multi-site) regression model to identify trends from short simulated data. 
+
+Without known values, it isn't really meaningful to conduct a formal power analysis. To demonstrate the abiltiy to gain increasing information from more sites, I fit the model to short (52 years = 50 motifs) data from increasing numbers of sites.
+
+Simulated data is generated from the same Ricker based model, with two sources of noise - global and site-specific. 
+
+# Data
+
+## Data bundling. 
+
+For the STAN function data needs to be in list form:
+
+- N = nrow(event_data),
+- K = length(motif_labels_3),
+- S = max(site_index),
+- G = max(time_index),
+- y = as.integer(event_data$motif_id),
+- site = site_index,
+- time_id = time_index,
+- time_scaled = event_data$time_scaled,
+- time_grid_scaled = time_lookup$time_scaled,
+- prior_only = as.integer(prior_only),
+- slope_prior_sd = slope_prior_sd,
+- sigma_site_scale = sigma_site_scale,
+- sigma_period_scale = sigma_period_scale
+```{r}
+make_multisite_linear_pe_trend_bundle <- function(simulated_data_matrix,
+                                                  m = 3, #  motif length
+                                                  site_ids = NULL,
+                                                  prior_only = 0,
+                                                  slope_prior_sd = 0.5,
+                                                  sigma_site_scale = 0.35,
+                                                  sigma_period_scale = 0.15) {
+  
+  abundance <- simulated_data_matrix
+  if (is.null(colnames(abundance))) {colnames(abundance) <- paste0("site_", seq_len(ncol(abundance)))}
+  if (is.null(site_ids)) {site_ids <- seq_len(ncol(abundance))}
+  if (any(site_ids < 1 | site_ids > ncol(abundance))) {
+    stop("site_ids must index columns of the abundance matrix.", call. = FALSE)}
+  
+  ### Calculate Motifs
+  
+  k <- as.integer(factorial(m))
+  n_year <- nrow(abundance)
+  center_time <- seq.int(2L, n_year - 1L) # center time of motifs
+  x_range <- range(center_time, na.rm = TRUE)
+  time_grid_scaled <-(center_time - mean(x_range)) / diff(x_range)
+  
+  rows <- vector("list", length(site_ids))
+  
+  event_data <- map_df(seq_along(site_ids),function(i){
+    site_col <- site_ids[i]
+    motif_id <- statcomp::ordinal_pattern_time_series(abundance[, site_col], m) + 1L
+    motif_id <- motif_id[seq_len(length(center_time))]
+    
+    if (any(is.na(motif_id))) {keep <- !is.na(motif_id)} else {keep <- rep(TRUE, length(motif_id))}
+    
+    data.frame(site_id = i,
+               site_column = site_col,
+               site_name = colnames(abundance)[site_col],
+               center_time = center_time[keep],
+               time_id = seq_along(center_time)[keep],
+               time_scaled = time_grid_scaled[keep],
+               motif_id = as.integer(motif_id[keep]))
+  })
+  
+  row.names(event_data) <- NULL
+  
+  ##   Build List
+  stan_data <- list(N = nrow(event_data),
+                    K = k,
+                    S = length(site_ids),
+                    G = length(time_grid_scaled),
+                    y = as.integer(event_data$motif_id),
+                    site = as.integer(event_data$site_id),
+                    time_id = as.integer(event_data$time_id),
+                    time_scaled = as.numeric(event_data$time_scaled),
+                    time_grid_scaled = as.numeric(time_grid_scaled),
+                    #Prior Flag 
+                    prior_only = as.integer(prior_only),
+                    ## Changeable Priors
+                    slope_prior_sd = slope_prior_sd,
+                    sigma_site_scale = sigma_site_scale,
+                    sigma_period_scale = sigma_period_scale)
+  
+  ## Checkers
+  stopifnot( length(stan_data$time_scaled) == stan_data$N,
+             length(stan_data$time_grid_scaled) == stan_data$G,
+             length(stan_data$y) == stan_data$N,
+             length(stan_data$site) == stan_data$N,
+             length(stan_data$time_id) == stan_data$N)
+  
+  return(stan_data)
+}
+
+```
+
+
+
+# Single Example
+
+### Simulating data and formatting
+
+```{r}
+
+sim_change_Multi<- simulate_feedback_sites(n_site = 100,n_year = 52,
+                                           delayed_feedback = -1.1, 
+                                           rho_spatial = 0.25,
+                                           sd_start = 0.1, sd_end = 0.2)
+
+matplot(sim_change_Multi$abundance_matrix[,1:10], type='l')
+
+
+multi_site_bundle <- make_multisite_linear_pe_trend_bundle(simulated_data_matrix =  sim_change_Multi$abundance_matrix,
+                                                           slope_prior_sd = 0.5,
+                                                           sigma_site_scale = 0.35,
+                                                           sigma_period_scale = 0.15)
+
+```
+
+
+
+## Fitting
+
+```{r linear-re-fit, eval=FALSE}
+multi_site_model_fit <- multi_site_model$sample(data = multi_site_bundle,
+  chains = 4,
+  parallel_chains = 4,
+  iter_warmup = 1000,
+  iter_sampling = 1000,
+  adapt_delta = 0.95,
+  max_treedepth = 12,
+  refresh = 100)
+
+vars_keep <- c("pe_slope", "pe_intercept","alpha_nsb",
+               "beta_time", "sigma_site", "sigma_period")
+
+multi_site_summary <- multi_site_model_fit$summary(vars_keep)
+multi_site_pe_time_summary <- multi_site_model_fit$summary(c("pe_population_time","pe_period_time"))
+
+write_csv(multi_site_summary,"model fits/multi_site_summary.csv")
+write_csv(multi_site_pe_time_summary, "model fits/multi_site_pe_time_summary.csv")
+
+multi_site_metadata <- list(  n_site = multi_site_bundle$S,
+                              n_time = multi_site_bundle$G,
+                              n_events = multi_site_bundle$N,
+                              time_grid_scaled = multi_site_bundle$time_grid_scaled,
+                              slope_prior_sd = multi_site_bundle$slope_prior_sd,
+                              sigma_site_scale = multi_site_bundle$sigma_site_scale,
+                              sigma_period_scale = multi_site_bundle$sigma_period_scale
+)
+
+saveRDS(multi_site_metadata,"model fits/multi_site_metadata.rds")
+
+```
+
+```{R}
+multi_site_summary<- read_csv("model fits/multi_site_summary.csv")
+multi_site_pe_time_summary<- read_csv("model fits/multi_site_pe_time_summary.csv")
+
+multi_site_summary
+
+multi_site_pe_time_summary
+```
+
+## Compare fitted PE trend to long-series truth
+
+These blue reference values are the long fixed-noise PE values from document 2,
+evaluated across the same simulated noise gradient from `sd = 0.1` to `sd = 0.2`.
+
+Line is the underlying population effect
+
+Dots include the period random effect.
+
+```{r}
+
+## 'True' PE values from previous script:
+PE_TRUE_MULTI <- data.frame(Scaled_time = seq(-0.5, 0.5, length.out = 11),
+                            TruePE = c(0.9259421, 0.9343271, 0.9414366, 0.9472344, 0.9517834,
+                                       0.9538866, 0.9571993, 0.9585305, 0.9591965, 0.9598608,0.9600080))
+
+pe_population_time_df <- multi_site_pe_time_summary %>%
+  filter(  str_starts(variable,'pe_population_time')) %>%
+  mutate(time_id = parse_number(variable),
+         time_scaled = multi_site_bundle$time_grid_scaled[time_id])
+
+pe_period_time_df <- multi_site_pe_time_summary %>%
+  filter(  str_starts(variable,'pe_period_time')) %>%
+  mutate(time_id = parse_number(variable),
+         time_scaled = multi_site_bundle$time_grid_scaled[time_id])
+
+
+OLS_Fitted_PE_SLOPE <- filter(multi_site_summary, variable=='pe_slope')$mean
+OLS_Fitted_PE_INTERCEPT <- filter(multi_site_summary, variable=='pe_intercept')$mean
+
+
+ggplot(pe_period_time_df, aes(x = time_scaled, y = mean)) +
+ geom_errorbar( aes(  ymin = q5,  ymax = q95,
+    colour = "Period\nMean"),width = 0, linewidth = 0.2, alpha = 0.5) +
+  geom_point( aes(colour = "Period\nMean"),size = 1.8) +
+  geom_line(data = PE_TRUE_MULTI,
+            aes(x = Scaled_time, y = TruePE, colour = '"True"')) +
+  geom_line(data = pe_population_time_df,
+            aes(colour = "Population\nMean"),
+            linewidth = 1.5) +
+  geom_point(data = PE_TRUE_MULTI,
+             aes(x = Scaled_time, y = TruePE, colour = '"True"'), size = 2) +
+  geom_abline(data = data.frame(slope = OLS_Fitted_PE_SLOPE,
+                                intercept = OLS_Fitted_PE_INTERCEPT),
+              aes( slope = slope, intercept = intercept,colour = "OLS Fit"),
+              linetype= 'dashed', linewidth = 1.5,
+              key_glyph = "path")+
+  theme_classic() +
+  theme( legend.position = 'bottom')+
+  scale_colour_manual(  breaks = c( "Period\nMean",
+                                    "Underlying\nPopulation\nMean",
+                                    '"True"',
+                                    "OLS Fit"),
+                        values = c( "Period\nMean"= "black",
+                                    "Underlying\nPopulation\nMean" = "#009E73",
+                                    '"True"'= "#0072B2",
+                                    "OLS Fit"= "#D55E00"
+                        ),name = NULL) +
+  guides(colour = guide_legend( override.aes = list(linewidth = 1.5) ))+
+  xlab("Time\n(scaled and centred)") +
+  ylab("Permutation Entropy") ->
+  MultiSite_PE_ThroughTime_Trial
+
+MultiSite_PE_ThroughTime_Trial
+
+
+
+
+
+```
+
+# Different Numbers of sites. 
+
+```{r eval = FALSE}
+n_site_grid <- c(1,seq(from=5,to=65, by 5))
+
+NSiteTest_df <- map_df(n_site_grid, function(n_site) {
+  ## Simulate raw data
+  data_x <-   simulate_feedback_sites(n_site = n_site,
+                                      n_year = 52,
+                                      delayed_feedback = -1.1, 
+                                      rho_spatial = 0.25,
+                                      sd_start = 0.1, sd_end = 0.2)
+  ## Bundle Data
+  multi_site_bundle <- make_multisite_linear_pe_trend_bundle(simulated_data_matrix = data_x$abundance_matrix,
+                                                             slope_prior_sd = 0.5,
+                                                             sigma_site_scale = 0.35,
+                                                             sigma_period_scale = 0.15)
+  ## Fit Model
+  multi_site_model_fit <- multi_site_model$sample(data = multi_site_bundle,
+                                                  chains = 4, parallel_chains = 4,
+                                                  iter_warmup = 500,iter_sampling = 800,
+                                                  refresh = 100)
+  ## Prep Posterior
+  multi_site_summary <- multi_site_model_fit$summary(c(  "pe_slope",  "pe_intercept",
+                                                         "pe_population_time","pe_period_time",
+                                                         "alpha_nsb", "beta_time",
+                                                         "sigma_site","sigma_period"))
+  ## Label and return
+  multi_site_summary$n_site = n_site
+  return(multi_site_summary)
+})
+
+write_csv('model fits/N_site_Test_df2.csv')
+
+```
+
+## Plotting Fitted through time
+
+```{r}
+
+ read_csv( 'model fits/N_site_Test_df2.csv' ) %>%
+  filter(  str_starts(variable,'pe_population_time')) %>%
+  mutate(time_id = parse_number(variable),
+         time_scaled = multi_site_bundle$time_grid_scaled[time_id]) %>%
+ggplot(aes(x = time_scaled, y = mean)) +
+  geom_errorbar(aes(ymin = q5, ymax = q95), width = 0, col = "grey80") +
+  geom_point(size = 1.8, aes(col = n_site )) +
+  geom_line(data = PE_TRUE_MULTI,
+            aes(x = Scaled_time, y = TruePE),
+            col = "blue") +
+  geom_point(data = PE_TRUE_MULTI,
+             aes(x = Scaled_time, y = TruePE),
+             col = "blue", size = 2) +
+  theme_classic() +
+  xlab("Time\n(scaled and centred)") +
+  ylab("Permutation Entropy") +
+   facet_wrap(~n_site)
+```
+
+## Plotting slope fits
+
+```{r}
+## 'True' Slope 
+True_slope = lm(data = PE_TRUE_MULTI, TruePE~Scaled_time)
+True_slope$coefficients[2]
+
+read_csv('model fits/N_site_Test_df2.csv' )%>%
+  filter(  str_starts(variable,'pe_slope')) %>%
+  ggplot( aes( x=n_site))+
+  geom_errorbar(aes(ymin = q5, ymax = q95), width = 0, col = "grey80") +
+  geom_point( aes(y = mean,  colour = "Estimated\nPE Slope"),    size = 1.8)+
+  geom_hline(   aes(yintercept = True_slope$coefficients[2],colour = '"True" PE Slope'),
+                key_glyph = "path")+
+  geom_hline( yintercept = 0, linetype = 'dashed')+
+  theme_classic()+
+  xlab('Number of Sites')+
+  scale_colour_manual( values = c("Estimated\nPE Slope" = "#D55E00",
+                                  '"True" PE Slope'= "#0072B2"),name = NULL) +
+  theme( legend.position = 'bottom')+
+  guides(colour = guide_legend( override.aes = list( linewidth = 1.2)) ) +
+  ylab( 'Estimated PE slope')-> NSites_vs_PESlope_Plot
+
+NSites_vs_PESlope_Plot
+
+```
+
+# Plotting
+
+```{R}
+demo3plot <- plot_grid(MultiSite_PE_ThroughTime_Trial, 
+                       NSites_vs_PESlope_Plot, align = 'h',scale = 0.95, 
+                       labels = c( 'e)','f)'))
+
+demo3plot
+
+```
+
+
+# Generating Combined Figure 2
+
+```{R}
+
+demo1plot <- readRDS("MS_figs/ggplot objects/demo1plot.rds")
+demo2plot <- readRDS("MS_figs/ggplot objects/demo2plot.rds")
+
+
+plot_grid( demo1plot,
+           demo2plot, 
+           demo3plot, ncol = 1)
+
+
+ggsave( filename = 'MS_Figs/Figure2_CombindedDemos.png', height = 10, width = 9)
+
+```
+
+
+# Session Info
+
+```{r}
+sessionInfo()
+
+```
+
+
+
+

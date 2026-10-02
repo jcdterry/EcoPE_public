@@ -1,0 +1,59 @@
+COMMON_NAME,SCI_NAME,NYEARS,F_LIN_B,F_LIN_SE,F_LIN_P,F_TRENDDETAIL,F_FULL_R,T20_LIN_B,T20_LIN_SE,T20_LIN_P,T20_TRENDDETAIL,T20_20_R,T10_LIN_B,T10_LIN_SE,T10_LIN_P,T10_TRENDDETAIL,T10_10_R
+"Swallowtail","Papilio machaon",48,-0.000416,0.00229,0.857,"Stable",-4.5,-0.0194,0.00646,0.00766,"Rapid decline",-57.22,0.00515,0.0207,0.81,"Stable",11.23
+"Dingy Skipper","Erynnis tages",49,-0.000904,0.00125,0.471,"Stable",-9.51,0.00402,0.00439,0.371,"Stable",19.23,-0.0148,0.0125,0.269,"Stable",-26.41
+"Grizzled Skipper","Pyrgus malvae",49,-0.00608,0.00145,0.000117,"Rapid decline",-48.93,-0.00667,0.00432,0.14,"Stable",-25.25,-0.00242,0.0104,0.822,"Stable",-4.89
+"Chequered Skipper","Carterocephalus palaemon",22,0.0166,0.00716,0.0313,"Rapid increase",123.32,0.0215,0.00832,0.0186,"Rapid increase",156.38,0.065,0.0222,0.0189,"Rapid increase",283.26
+"Essex Skipper","Thymelicus lineola",48,-0.00295,0.00242,0.228,"Stable",-27.33,0.00102,0.00686,0.883,"Stable",4.56,-0.0173,0.0116,0.174,"Stable",-30.16
+"Small Skipper","Thymelicus sylvestris",49,-0.0117,0.00182,0.0000000577,"Rapid decline",-72.59,0.00323,0.0051,0.535,"Stable",15.19,-0.0196,0.0121,0.145,"Stable",-33.36
+"Lulworth Skipper","Thymelicus acteon",33,-0.012,0.0056,0.0396,"Rapid decline",-58.76,0.0227,0.0106,0.046,"Rapid increase",170.16,0.0548,0.0245,0.0552,"Stable",212.58
+"Silver-spotted Skipper","Hesperia comma",46,0.0148,0.00295,0.00000905,"Rapid increase",364.14,-0.00979,0.00807,0.241,"Stable",-34.85,-0.0433,0.0246,0.116,"Stable",-59.24
+"Large Skipper","Ochlodes sylvanus",49,-0.00323,0.00138,0.0237,"Rapid decline",-30.02,-0.00375,0.00476,0.441,"Stable",-15.13,-0.0224,0.00869,0.0329,"Rapid decline",-37.15
+"Wood White","Leptidea sinapis",46,-0.0156,0.00348,0.0000532,"Rapid decline",-80.15,0.00983,0.00592,0.114,"Stable",53.76,0.00358,0.0143,0.809,"Stable",7.7
+"Cryptic Wood White","Leptidea juvernica",16,-0.00928,0.0091,0.325,"Stable",-27.38,-0.00928,0.0091,0.325,"Stable",-27.38,-0.0532,0.0152,0.00813,"Rapid decline",-66.7
+"Orange-tip","Anthocharis cardamines",49,0.00317,0.000918,0.00119,"Rapid increase",41.99,0.01,0.0036,0.0123,"Rapid increase",54.9,0.00291,0.00878,0.749,"Stable",6.21
+"Large White","Pieris brassicae",49,-0.00373,0.00178,0.0415,"Rapid decline",-33.78,-0.00374,0.00653,0.573,"Stable",-15.1,-0.00988,0.0123,0.445,"Stable",-18.52
+"Small White","Pieris rapae",49,-0.0018,0.00171,0.297,"Stable",-18.06,0.00291,0.00642,0.656,"Stable",13.57,-0.000667,0.0169,0.97,"Stable",-1.37
+"Green-veined White","Pieris napi",49,-0.003,0.00132,0.0275,"Rapid decline",-28.24,-0.0064,0.00569,0.276,"Stable",-24.38,-0.022,0.011,0.0813,"Stable",-36.62
+"Clouded Yellow","Colias croceus",46,0.0143,0.00811,0.0842,"Stable",340.53,-0.0184,0.0208,0.387,"Stable",-55.31,-0.0759,0.0393,0.0895,"Stable",-79.18
+"Brimstone","Gonepteryx rhamni",49,0.00348,0.00108,0.00241,"Rapid increase",46.94,0.0131,0.00392,0.00366,"Rapid increase",77.3,0.00873,0.00813,0.315,"Stable",19.83
+"Wall","Lasiommata megera",49,-0.0167,0.00201,0.0000000000848,"Rapid decline",-84.19,-0.00208,0.00492,0.677,"Stable",-8.7,0.0182,0.0111,0.14,"Stable",45.82
+"Speckled Wood","Pararge aegeria",49,0.0057,0.00127,0.0000474,"Rapid increase",87.66,-0.00313,0.00336,0.364,"Stable",-12.8,-0.00339,0.00788,0.678,"Stable",-6.79
+"Large Heath","Coenonympha tullia",35,0.0187,0.00383,0.0000261,"Rapid increase",332.33,-0.00883,0.00815,0.293,"Stable",-32.01,0.021,0.0186,0.292,"Stable",54.6
+"Small Heath","Coenonympha pamphilus",49,-0.00517,0.00157,0.00187,"Rapid decline",-43.43,0.00683,0.00503,0.191,"Stable",34.95,0.0129,0.0149,0.413,"Stable",30.71
+"Scotch Argus","Erebia aethiops",46,0.000352,0.003,0.907,"Stable",3.72,-0.0232,0.00553,0.000529,"Rapid decline",-63.75,-0.0411,0.0129,0.0131,"Rapid decline",-57.33
+"Ringlet","Aphantopus hyperantus",49,0.0119,0.00192,0.00000014,"Rapid increase",272.92,0.000752,0.0043,0.863,"Stable",3.34,-0.0275,0.00935,0.0186,"Rapid decline",-43.46
+"Meadow Brown","Maniola jurtina",49,0.000123,0.000901,0.892,"Stable",1.37,0.00344,0.00306,0.274,"Stable",16.24,0.00255,0.00957,0.797,"Stable",5.43
+"Gatekeeper","Pyronia tithonus",49,-0.00434,0.00145,0.00445,"Rapid decline",-38.12,0.00108,0.00426,0.804,"Stable",4.84,0.0133,0.0117,0.288,"Stable",31.74
+"Marbled White","Melanargia galathea",49,0.00536,0.00143,0.000499,"Rapid increase",80.68,0.0138,0.00415,0.00386,"Rapid increase",82.94,-0.00521,0.00974,0.607,"Stable",-10.21
+"Grayling","Hipparchia semele",49,-0.0115,0.00132,0.0000000000191,"Rapid decline",-71.9,-0.0118,0.00458,0.0192,"Rapid decline",-40.32,0.0101,0.00891,0.292,"Stable",23.25
+"Pearl-bordered Fritillary","Boloria euphrosyne",49,-0.0108,0.00168,0.0000000646,"Rapid decline",-69.75,-0.00556,0.00469,0.252,"Stable",-21.56,-0.0127,0.0104,0.257,"Stable",-23.13
+"Small Pearl-bordered Fritillary","Boloria selene",49,-0.0116,0.00166,0.00000000866,"Rapid decline",-72.31,-0.0151,0.00319,0.000163,"Rapid decline",-48.38,-0.0244,0.00876,0.0239,"Rapid decline",-39.67
+"Silver-washed Fritillary","Argynnis paphia",49,0.0108,0.00161,0.000000024,"Rapid increase",230.23,-0.00156,0.00642,0.81,"Stable",-6.61,-0.0276,0.0178,0.159,"Stable",-43.57
+"Dark Green Fritillary","Speyeria aglaja",49,0.0113,0.00201,0.000000986,"Rapid increase",249.3,-0.0000752,0.00619,0.99,"Stable",-0.33,-0.00545,0.0236,0.823,"Stable",-10.7
+"High Brown Fritillary","Fabriciana adippe",47,-0.00964,0.00303,0.00268,"Rapid decline",-64.06,0.0155,0.00739,0.0511,"Stable",96.89,-0.0116,0.0148,0.455,"Stable",-21.4
+"White Admiral","Limenitis camilla",49,-0.00878,0.0019,0.0000303,"Rapid decline",-62.08,-0.0129,0.00581,0.0398,"Rapid decline",-43.17,-0.00103,0.0169,0.953,"Stable",-2.11
+"Purple Emperor","Apatura iris",46,0.00785,0.00235,0.00171,"Rapid increase",125.16,0.00592,0.00592,0.33,"Stable",29.5,0.0107,0.017,0.548,"Stable",24.78
+"Red Admiral","Vanessa atalanta",49,0.0128,0.00262,0.0000124,"Rapid increase",311.3,0.0113,0.0084,0.194,"Stable",64.07,0.0257,0.0267,0.363,"Stable",70.39
+"Painted Lady","Vanessa cardui",49,0.00458,0.00641,0.479,"Stable",65.88,-0.00696,0.0235,0.77,"Stable",-26.25,-0.0375,0.0536,0.504,"Stable",-54.02
+"Peacock","Aglais io",49,0.000182,0.00155,0.907,"Stable",2.03,0.000301,0.00603,0.961,"Stable",1.32,0.00491,0.0171,0.782,"Stable",10.74
+"Small Tortoiseshell","Aglais urticae",49,-0.0177,0.00269,0.0000000351,"Rapid decline",-85.84,-0.0152,0.0105,0.165,"Stable",-48.58,-0.0689,0.0277,0.0375,"Rapid decline",-76.09
+"Comma","Polygonia c-album",49,0.00904,0.00192,0.0000231,"Rapid increase",171.17,-0.00419,0.00445,0.359,"Stable",-16.75,-0.00376,0.013,0.781,"Stable",-7.5
+"Marsh Fritillary","Euphydryas aurinia",44,0.000294,0.00322,0.928,"Stable",2.95,-0.00105,0.00853,0.904,"Stable",-4.5,0.0173,0.0133,0.231,"Stable",43.07
+"Glanville Fritillary","Melitaea cinxia",36,0.0132,0.00686,0.0628,"Stable",190.12,0.0257,0.0182,0.176,"Stable",208.03,0.00273,0.011,0.811,"Stable",5.82
+"Heath Fritillary","Melitaea athalia",44,-0.0219,0.00287,0.00000000195,"Rapid decline",-88.58,-0.0117,0.00877,0.199,"Stable",-40.09,0.0491,0.0179,0.0251,"Rapid increase",177.31
+"Duke of Burgundy","Hamearis lucina",46,-0.0041,0.00162,0.015,"Rapid decline",-34.62,0.0121,0.00343,0.00244,"Rapid increase",69.93,0.00933,0.0103,0.391,"Stable",21.31
+"Small Copper","Lycaena phlaeas",49,-0.00519,0.00177,0.00529,"Rapid decline",-43.71,-0.00592,0.00552,0.297,"Stable",-22.76,-0.00242,0.0181,0.897,"Stable",-4.89
+"Brown Hairstreak","Thecla betulae",42,-0.000976,0.0026,0.709,"Stable",-8.82,-0.00537,0.00405,0.202,"Stable",-20.95,0.00582,0.008,0.488,"Stable",12.83
+"Purple Hairstreak","Favonius quercus",49,-0.00213,0.00269,0.432,"Stable",-20.97,0.00744,0.00607,0.236,"Stable",38.53,0.0017,0.0215,0.939,"Stable",3.58
+"Green Hairstreak","Callophrys rubi",49,-0.0037,0.00133,0.00791,"Rapid decline",-33.55,-0.0022,0.00507,0.669,"Stable",-9.17,0.00279,0.0117,0.818,"Stable",5.96
+"White-letter Hairstreak","Satyrium w-album",49,-0.0145,0.00318,0.0000371,"Rapid decline",-79.83,-0.00653,0.00611,0.299,"Stable",-24.82,-0.00697,0.0207,0.745,"Stable",-13.43
+"Black Hairstreak","Satyrium pruni",30,0.0301,0.00833,0.00116,"Rapid increase",646.96,0.0409,0.0172,0.0287,"Rapid increase",499.04,0.044,0.0373,0.272,"Stable",149.65
+"Small Blue","Cupido minimus",47,0.00229,0.00228,0.32,"Stable",27.47,0.00533,0.00526,0.324,"Stable",26.38,0.00739,0.0129,0.581,"Stable",16.59
+"Holly Blue","Celastrina argiolus",49,0.00912,0.00369,0.0172,"Rapid increase",173.73,0.0146,0.0078,0.0782,"Stable",89.45,0.0103,0.0205,0.63,"Stable",23.79
+"Large Blue","Phengaris arion",42,0.0339,0.00524,0.000000107,"Rapid increase",2355.54,0.0293,0.00566,0.0000644,"Rapid increase",260.37,0.0124,0.0127,0.36,"Stable",29.34
+"Silver-studded Blue","Plebejus argus",46,0.00504,0.00215,0.0237,"Rapid increase",68.78,0.0107,0.00464,0.0337,"Rapid increase",59.57,0.0112,0.0108,0.334,"Stable",26.1
+"Brown Argus","Aricia agestis",49,0.00197,0.00216,0.368,"Stable",24.35,0.00582,0.00877,0.515,"Stable",29.02,0.00491,0.0246,0.847,"Stable",10.74
+"Northern Brown Argus","Aricia artaxerxes",46,-0.00876,0.00229,0.000418,"Rapid decline",-59.71,0.000692,0.00391,0.862,"Stable",3.06,-0.00697,0.0122,0.583,"Stable",-13.43
+"Common Blue","Polyommatus icarus",49,-0.00307,0.00191,0.116,"Stable",-28.79,-0.00637,0.00813,0.444,"Stable",-24.38,-0.0269,0.0196,0.206,"Stable",-42.76
+"Adonis Blue","Polyommatus bellargus",46,0.00469,0.00299,0.124,"Stable",62.88,-0.027,0.00653,0.000628,"Rapid decline",-69.32,-0.0244,0.0186,0.226,"Stable",-39.67
+"Chalk Hill Blue","Polyommatus coridon",49,-0.00134,0.00171,0.438,"Stable",-13.76,-0.00624,0.00828,0.461,"Stable",-23.94,-0.0057,0.0252,0.827,"Stable",-11.11

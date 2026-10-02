@@ -1,0 +1,185 @@
+{
+"@context": "https://w3id.org/ro/crate/1.2/context",
+"@graph": [
+{
+"@type": "CreativeWork",
+"@id": "ro-crate-metadata.json",
+"conformsTo": { "@id": "https://w3id.org/ro/crate/1.2" },
+"about": { "@id": "https://catalogue.ceh.ac.uk/id/53a1c705-4437-48bb-9bcd-b68977f8edd9" }
+},
+{
+"@type":"Dataset",
+"name":"United Kingdom Butterfly Monitoring Scheme: site indices 2024",
+"@id": "https://catalogue.ceh.ac.uk/id/53a1c705-4437-48bb-9bcd-b68977f8edd9",
+"identifier": {"@id": "https://doi.org/10.5285/53a1c705-4437-48bb-9bcd-b68977f8edd9"},
+"citation":"Botham, M.S., Middlebrook, I., Harrower, C.A., Milborrow, J., Roy, D.B. (2025). United Kingdom Butterfly Monitoring Scheme: site indices 2024. NERC EDS Environmental Information Data Centre. (Dataset). https://doi.org/10.5285/53a1c705-4437-48bb-9bcd-b68977f8edd9",
+"hasPart": [
+{"@id":
+"data/ukbmssiteindices2024.csv"
+} ,
+{"@id":
+"supporting-documents/ukbms_site_indices_2024.docx"
+} ],
+"description":"This dataset comprises individual site indices for UK butterfly species calculated from data from the UK Butterfly Monitoring Scheme (UKBMS). Site indices are a relative rather than an absolute measure of the size of a population, and have been shown to relate closely to other, more intensive, measures of population size such as mark, release, recapture (MRR) methods. The site index can be thought of as a relative measure of the population size, being a more or less constant proportion of the number of butterflies present. The proportion seen is likely to vary according to species; some butterfly species are more conspicuous and thus more easily detected, whereas others are much less easy to see. Site indices are only calculated at sites with sufficient monitoring visits throughout the season, or for targeted reduced effort surveys (timed observations, larval web counts and egg counts) where counts are generally obtained as close to the peak of the flight period as possible and are subsequently adjusted for the time of year and size of the site (area of suitable habitat type for a given species). Wider Countryside Butterfly Survey (WCBS) sites are thus excluded because they are based on very few visits from which indices of abundance are not calculated. For transect sites, a statistical model (a General Additive Model, 'GAM') is used to impute missing values and to calculate a site index. Each year most transect sites (over 90%) produce an index for at least one species and in recent years site indices have been calculated for over 2,000 sites across the UK. Site indices are subsequently collated to contribute to the overall 'Collated Index' for each species, which are relative measures of the abundance of each species across a geographical area, for example, across the whole UK or at country level for England, Scotland, Wales or Northern Ireland. Individual site indices are important in informing conservation management as not all sites show the same patterns for each species and likely reflect a combination of local climate and habitat management at the site. The UK Butterfly Monitoring Scheme is organized and funded by Butterfly Conservation (BC), the UK Centre for Ecology & Hydrology (UKCEH), the British Trust for Ornithology (BTO), and the Joint Nature Conservation Committee (JNCC). The UKBMS is indebted to all volunteers who contribute data to the scheme. This work was supported by the Natural Environment Research Council award number NE/R016429/1 as part of the UK-SCAPE programme delivering National Capability.",
+"isAccessibleForFree": true,
+"datePublished":"2025-12-18",
+"keywords": [
+"annual"
+,
+"BReVI"
+,
+"butterflies"
+,
+"Leipdoptera"
+,
+{"@type": "DefinedTerm","@id": "http://onto.nerc.ac.uk/CEHMD/topic/2","name": "Biodiversity" }
+],
+"creator": [
+{"@id": "https://orcid.org/0000-0002-5276-1405"},
+{"@id": "https://orcid.org/0000-0002-0448-9144"},
+{"@id": "https://orcid.org/0000-0001-5070-5293"},
+{"@id": "#creator3"},
+{"@id": "https://orcid.org/0000-0002-5147-0331"}
+],
+"temporalCoverage":[
+"2024-01-01/2024-12-31" ],
+"spatialCoverage": [ {"@id": "#bbox0"}],
+"license": "https://eidc.ac.uk/licences/ogl-ukbms/plain",
+"distribution": [ {"@id": "#distribution0"}],
+"publisher":{"@id":"https://ror.org/04xw4m193"},
+"provider" : {"@id":"https://ror.org/04xw4m193"},
+"includedInDataCatalog":{ "@id": "#eidc-dataCatalogue"}
+},
+{
+"@id": "#eidc-dataCatalogue",
+"@type":"DataCatalog",
+"name":"Environmental Information Data Centre",
+"alternateName":"EIDC",
+"url":"https://catalogue.ceh.ac.uk/eidc/documents"
+},
+{
+"@id": "https://ror.org/04xw4m193",
+"@type":"Organization",
+"name":"NERC EDS Environmental Information Data Centre",
+"email": "info@eidc.ac.uk"
+}
+,{
+"@id": "https://spdx.org/licenses/OGL-UK-3.0",
+"@type": "CreativeWork",
+"name": "Open Government Licence v3",
+"alternateName":"OGL-UK-3.0",
+"sameAs": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/"
+}
+,{
+"@id": "https://doi.org/10.5285/53a1c705-4437-48bb-9bcd-b68977f8edd9",
+"@type":"PropertyValue",
+"propertyID": "https://registry.identifiers.org/registry/doi",
+"value": "10.5285/53a1c705-4437-48bb-9bcd-b68977f8edd9",
+"url": "https://doi.org/10.5285/53a1c705-4437-48bb-9bcd-b68977f8edd9"
+}
+, {
+"@id": "#bbox0",
+"@type":"Place",
+"geo": {
+"@id": "#geoshape0"
+}
+},
+{
+"@id": "#geoshape0",
+"@type": "GeoShape",
+"box":"-8.648 49.864, 1.768 60.861"
+}
+,
+{
+"@id": "https://orcid.org/0000-0002-5276-1405",
+"@type": "Person",
+"name": "Botham, M.S."
+, "familyName": "Botham"
+, "givenName": "Marc S"
+,"email": "math2@ceh.a.uk"
+,"affiliation":{
+"@type":"Organization",
+"name":"UK Centre for Ecology & Hydrology"
+}
+},
+{
+"@id": "https://orcid.org/0000-0002-0448-9144",
+"@type": "Person",
+"name": "Middlebrook, I."
+, "familyName": "Middlebrook"
+, "givenName": "Ian"
+,"email": "imiddlebrook@butterfly-conservation.org"
+,"affiliation":{
+"@type":"Organization",
+"name":"Butterfly Conservation"
+}
+},
+{
+"@id": "https://orcid.org/0000-0001-5070-5293",
+"@type": "Person",
+"name": "Harrower, C.A."
+, "familyName": "Harrower"
+, "givenName": "Colin A"
+,"email": "enquiries@ceh.ac.uk"
+,"affiliation":{
+"@type":"Organization",
+"name":"UK Centre for Ecology & Hydrology"
+}
+},
+{
+"@id": "#creator3",
+"@type": "Person",
+"name": "Milborrow, J."
+, "familyName": "Milborrow"
+, "givenName": "Jo"
+,"email": "jmilborrow@butterfly-conservation.org"
+,"affiliation":{
+"@type":"Organization",
+"name":"Butterfly Conservation"
+}
+},
+{
+"@id": "https://orcid.org/0000-0002-5147-0331",
+"@type": "Person",
+"name": "Roy, D.B."
+, "familyName": "Roy"
+, "givenName": "David B"
+,"email": "enquiries@ceh.ac.uk"
+,"affiliation":{
+"@type":"Organization",
+"name":"UK Centre for Ecology & Hydrology"
+}
+}
+, {
+"@id":
+"data/ukbmssiteindices2024.csv"
+,"name": "ukbmssiteindices2024.csv","@type": "File"
+,"encodingFormat": "text/csv"
+,"sha256": "fbfc45b590b10178cc084aa5017f63933b49dabdddbf3ee31db737f5b813d823"
+,"lastModified": "2025-12-18T11:21:11"
+,"bytes": 50756761
+,"contentUrl": "data/ukbmssiteindices2024.csv"
+}
+, {
+"@id":
+"supporting-documents/ukbms_site_indices_2024.docx"
+,"name": "ukbms_site_indices_2024.docx","@type": "File"
+,"sha256": "a19404b67706d1cd37b66f56e52646549581b409e319d443a7aad6164ce79324"
+,"lastModified": "2025-12-18T11:21:05"
+,"bytes": 28726
+,"contentUrl": "supporting-documents/ukbms_site_indices_2024.docx"
+}
+, {
+"@id": "#distribution0",
+"@type":"DataDownload",
+"contentUrl":"https://data-package.ceh.ac.uk/data/53a1c705-4437-48bb-9bcd-b68977f8edd9"
+,"encodingFormat":"application/zip"
+}
+, {
+"@id": "https://ror.org/00pggkr55",
+"@type": "Organization",
+"name": "UK Centre for Ecology & Hydrology",
+"identifier": "https://ror.org/00pggkr55"
+}
+]
+}

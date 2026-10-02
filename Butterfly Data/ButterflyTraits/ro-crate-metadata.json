@@ -1,0 +1,304 @@
+{
+"@context": "https://w3id.org/ro/crate/1.2/context",
+"@graph": [
+{
+"@type": "CreativeWork",
+"@id": "ro-crate-metadata.json",
+"conformsTo": { "@id": "https://w3id.org/ro/crate/1.2" },
+"about": { "@id": "https://catalogue.ceh.ac.uk/id/dbc7cc17-cbbd-49dd-bab4-8e8855768d66" }
+},
+{
+"@type":"Dataset",
+"name":"Traits data for the butterflies and macro-moths of Great Britain and Ireland, 2024",
+"@id": "https://catalogue.ceh.ac.uk/id/dbc7cc17-cbbd-49dd-bab4-8e8855768d66",
+"identifier": {"@id": "https://doi.org/10.5285/dbc7cc17-cbbd-49dd-bab4-8e8855768d66"},
+"citation":"Cook, P.M., Tordoff, G.M., Davis, A.M., Parsons, M.S., Dennis, E.B., Fox, R., Botham, M.S., Bourn, N.A.D. (2025). Traits data for the butterflies and macro-moths of Great Britain and Ireland, 2024. NERC EDS Environmental Information Data Centre. (Dataset). https://doi.org/10.5285/dbc7cc17-cbbd-49dd-bab4-8e8855768d66",
+"hasPart": [
+{"@id":
+"data/ecological_traits_2024.csv"
+} ,
+{"@id":
+"data/excluded_species_2024.csv"
+} ,
+{"@id":
+"data/excluded_subspecies_2024.csv"
+} ,
+{"@id":
+"data/hostplant_list_stacked_2024.csv"
+} ,
+{"@id":
+"data/hostplant_list_unstacked_2024.csv"
+} ,
+{"@id":
+"supporting-documents/metadatas1_2024.docx"
+} ,
+{"@id":
+"supporting-documents/readme_2024.rtf"
+} ],
+"description":"Here, we present a comprehensive traits database for the butterflies and macro-moths of Great Britain and Ireland. The database covers 968 species in 21 families. Ecological traits fall into four main categories: life cycle ecology and phenology, host plant specificity and characteristics, breeding habitat, and morphological characteristics. The database also contains data regarding species distribution, conservation status, and temporal trends for abundance and occupancy. This database can be used for a wide array of purposes including further fundamental research on species and community responses to environmental change, conservation and management studies, and evolutionary biology. This is the updated version of the dataset, incorporating additions and corrections compared to previous versions (https://doi.org/10.5285/5b5a13b6-2304-47e3-9c9d-35237d1232c6 & https://doi.org/10.5285/33a66d6a-dd9b-4a19-9026-cf1ffb969cdb)",
+"isAccessibleForFree": true,
+"datePublished":"2025-08-12",
+"keywords": [
+"butterflies"
+,
+"database"
+,
+"ecology"
+,
+"Lepidoptera"
+,
+"moths"
+,
+"trait"
+,
+"trend"
+,
+{"@type": "DefinedTerm","@id": "http://onto.nerc.ac.uk/CEHMD/topic/2","name": "Biodiversity" }
+],
+"creator": [
+{"@id": "https://orcid.org/0000-0002-7510-1020"},
+{"@id": "#creator1"},
+{"@id": "#creator2"},
+{"@id": "#creator3"},
+{"@id": "https://orcid.org/0000-0003-2692-4415"},
+{"@id": "https://orcid.org/0000-0001-6992-3522"},
+{"@id": "https://orcid.org/0000-0002-5276-1405"},
+{"@id": "https://orcid.org/0000-0003-1416-6047"}
+],
+"temporalCoverage":[
+"2024-01-01/2024-12-31" ],
+"spatialCoverage": [ {"@id": "#bbox0"}],
+"funding": [{"@id": "#fund0"}
+],
+"license": {"@id": "https://spdx.org/licenses/OGL-UK-3.0"},
+"distribution": [ {"@id": "#distribution0"}],
+"publisher":{"@id":"https://ror.org/04xw4m193"},
+"provider" : {"@id":"https://ror.org/04xw4m193"},
+"includedInDataCatalog":{ "@id": "#eidc-dataCatalogue"}
+},
+{
+"@id": "#eidc-dataCatalogue",
+"@type":"DataCatalog",
+"name":"Environmental Information Data Centre",
+"alternateName":"EIDC",
+"url":"https://catalogue.ceh.ac.uk/eidc/documents"
+},
+{
+"@id": "https://ror.org/04xw4m193",
+"@type":"Organization",
+"name":"NERC EDS Environmental Information Data Centre",
+"email": "info@eidc.ac.uk"
+}
+,{
+"@id": "https://spdx.org/licenses/OGL-UK-3.0",
+"@type": "CreativeWork",
+"name": "Open Government Licence v3",
+"alternateName":"OGL-UK-3.0",
+"sameAs": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/"
+}
+,{
+"@id": "https://doi.org/10.5285/dbc7cc17-cbbd-49dd-bab4-8e8855768d66",
+"@type":"PropertyValue",
+"propertyID": "https://registry.identifiers.org/registry/doi",
+"value": "10.5285/dbc7cc17-cbbd-49dd-bab4-8e8855768d66",
+"url": "https://doi.org/10.5285/dbc7cc17-cbbd-49dd-bab4-8e8855768d66"
+}
+, {
+"@id": "#bbox0",
+"@type":"Place",
+"geo": {
+"@id": "#geoshape0"
+}
+},
+{
+"@id": "#geoshape0",
+"@type": "GeoShape",
+"box":"-10.237 49.951, 1.768 60.861"
+}
+,
+{
+"@id": "https://orcid.org/0000-0002-7510-1020",
+"@type": "Person",
+"name": "Cook, P.M."
+, "familyName": "Cook"
+, "givenName": "P.M."
+,"email": "pcook@butterfly-conservation.org"
+,"affiliation":{
+"@id": "https://ror.org/05jg03a59"
+}
+},
+{
+"@id": "#creator1",
+"@type": "Person",
+"name": "Tordoff, G.M."
+, "familyName": "Tordoff"
+, "givenName": "G.M."
+,"email": "info@butterfly-conservation.org"
+,"affiliation":{
+"@id": "https://ror.org/05jg03a59"
+}
+},
+{
+"@id": "#creator2",
+"@type": "Person",
+"name": "Davis, A.M."
+, "familyName": "Davis"
+, "givenName": "A.M."
+,"email": "info@butterfly-conservation.org"
+,"affiliation":{
+"@id": "https://ror.org/05jg03a59"
+}
+},
+{
+"@id": "#creator3",
+"@type": "Person",
+"name": "Parsons, M.S."
+, "familyName": "Parsons"
+, "givenName": "M.S."
+,"email": "markparsons442@gmail.com"
+,"affiliation":{
+"@id": "https://ror.org/05jg03a59"
+}
+},
+{
+"@id": "https://orcid.org/0000-0003-2692-4415",
+"@type": "Person",
+"name": "Dennis, E.B."
+, "familyName": "Dennis"
+, "givenName": "E.B."
+,"email": "edennis@butterfly-conservation.org"
+,"affiliation":{
+"@id": "https://ror.org/05jg03a59"
+}
+},
+{
+"@id": "https://orcid.org/0000-0001-6992-3522",
+"@type": "Person",
+"name": "Fox, R."
+, "familyName": "Fox"
+, "givenName": "R."
+,"email": "rfox@butterfly-conservation.org"
+,"affiliation":{
+"@id": "https://ror.org/05jg03a59"
+}
+},
+{
+"@id": "https://orcid.org/0000-0002-5276-1405",
+"@type": "Person",
+"name": "Botham, M.S."
+, "familyName": "Botham"
+, "givenName": "M.S."
+,"email": "enquiries@ceh.ac.uk"
+,"affiliation":{
+"@id": "https://ror.org/00pggkr55"
+}
+},
+{
+"@id": "https://orcid.org/0000-0003-1416-6047",
+"@type": "Person",
+"name": "Bourn, N.A.D."
+, "familyName": "Bourn"
+, "givenName": "N.A.D."
+,"email": "info@butterfly-conservation.org"
+,"affiliation":{
+"@id": "https://ror.org/05jg03a59"
+}
+}
+, {
+"@id": "#fund0",
+"@type": "MonetaryGrant"
+,"funder": {"@id": "#funderOrg0"}
+}
+,{
+"@id": "#funderOrg0",
+"@type": "Organization"
+,"name": "Butterfly Conservation"
+}
+, {
+"@id":
+"data/ecological_traits_2024.csv"
+,"name": "ecological_traits_2024.csv","@type": "File"
+,"encodingFormat": "text/csv"
+,"sha256": "689d6a387391e974b15e7957373cdb2ed677995d22f44302a6f86be1be6c4cef"
+,"lastModified": "2025-08-12T13:09:27"
+,"bytes": 343168
+,"contentUrl": "data/ecological_traits_2024.csv"
+}
+, {
+"@id":
+"data/excluded_species_2024.csv"
+,"name": "excluded_species_2024.csv","@type": "File"
+,"encodingFormat": "text/csv"
+,"sha256": "2bc7b4dbbaa2151414bb4d90ffbeec56c17c6493b4eb992828db98a8fedb83a7"
+,"lastModified": "2025-08-12T13:09:31"
+,"bytes": 98363
+,"contentUrl": "data/excluded_species_2024.csv"
+}
+, {
+"@id":
+"data/excluded_subspecies_2024.csv"
+,"name": "excluded_subspecies_2024.csv","@type": "File"
+,"encodingFormat": "text/csv"
+,"sha256": "a31760c1947e1f0370550c1054bc3069fc7e918408400ac688707acb4827ef15"
+,"lastModified": "2025-08-12T13:09:33"
+,"bytes": 18486
+,"contentUrl": "data/excluded_subspecies_2024.csv"
+}
+, {
+"@id":
+"data/hostplant_list_stacked_2024.csv"
+,"name": "hostplant_list_stacked_2024.csv","@type": "File"
+,"encodingFormat": "text/csv"
+,"sha256": "371062f0e9359170147775075333768944ae7649f8ed089e77ca4a8311e5d7e6"
+,"lastModified": "2025-08-12T13:09:36"
+,"bytes": 182593
+,"contentUrl": "data/hostplant_list_stacked_2024.csv"
+}
+, {
+"@id":
+"data/hostplant_list_unstacked_2024.csv"
+,"name": "hostplant_list_unstacked_2024.csv","@type": "File"
+,"encodingFormat": "text/csv"
+,"sha256": "53942f6a21e8426980767709a75b6a43eb26d587cff04c17391453b73f98608f"
+,"lastModified": "2025-08-12T13:09:39"
+,"bytes": 625705
+,"contentUrl": "data/hostplant_list_unstacked_2024.csv"
+}
+, {
+"@id":
+"supporting-documents/metadatas1_2024.docx"
+,"name": "metadatas1_2024.docx","@type": "File"
+,"sha256": "7e5b99658bf300b60ae3fffbf5322be04504ea8ab2137ec3392cc1b0b59fa5eb"
+,"lastModified": "2025-08-12T13:09:42"
+,"bytes": 76774
+,"contentUrl": "supporting-documents/metadatas1_2024.docx"
+}
+, {
+"@id":
+"supporting-documents/readme_2024.rtf"
+,"name": "readme_2024.rtf","@type": "File"
+,"sha256": "26fa4089a9989c2f44559a17f4ecee5c3f4a591796b307b4e410d688338c76aa"
+,"lastModified": "2025-08-12T13:09:44"
+,"bytes": 292178
+,"contentUrl": "supporting-documents/readme_2024.rtf"
+}
+, {
+"@id": "#distribution0",
+"@type":"DataDownload",
+"contentUrl":"https://data-package.ceh.ac.uk/data/dbc7cc17-cbbd-49dd-bab4-8e8855768d66"
+,"encodingFormat":"application/zip"
+}
+, {
+"@id": "https://ror.org/00pggkr55",
+"@type": "Organization",
+"name": "UK Centre for Ecology & Hydrology",
+"identifier": "https://ror.org/00pggkr55"
+},
+{
+"@id": "https://ror.org/05jg03a59",
+"@type": "Organization",
+"name": "Butterfly Conservation",
+"identifier": "https://ror.org/05jg03a59"
+}
+]
+}

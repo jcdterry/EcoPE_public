@@ -1,0 +1,658 @@
+---
+title: "Butterfly Data"
+author: "Chris Terry"
+date: "2026-07-09"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Introduction 
+
+This document processes the raw UKBMS data as available online, filtering it to focal sites, species and time period, and calculating into motifs of each window. 
+
+It also includes a large number of informal summary graphs to get a basic understanding of the data. 
+
+### Butterfly Data sources: 
+
+Botham, M.S.; Middlebrook, I.; Harrower, C.A.; Milborrow, J.; Roy, D.B. (2025). United Kingdom Butterfly Monitoring Scheme: site indices 2024. NERC EDS Environmental Information Data Centre. https://doi.org/10.5285/53a1c705-4437-48bb-9bcd-b68977f8edd9
+
+Botham, M.S.; Middlebrook, I.; Heywood, J.; Harrower, C.A.; Milborrow, J.; Roy, D.B. (2025). United Kingdom Butterfly Monitoring Scheme: site location data 2024. NERC EDS Environmental Information Data Centre. https://doi.org/10.5285/d7256b49-f2e3-4ae7-907d-af729610c768
+
+UK Butterfly Monitoring Scheme (UKBMS) data © copyright and database right Butterfly Conservation, the UK Centre for Ecology & Hydrology, British Trust for Ornithology, and the Joint Nature Conservation Committee.
+
+```{r message=FALSE}
+library(tidyverse)
+library(sf)
+library(terra)
+library(rnaturalearth)
+library(tidyterra)
+library(patchwork)
+SiteIndices <- read_csv( 'Butterfly Data/SiteIndices/data/ukbmssiteindices2024.csv')
+LocationData <- read_csv( 'Butterfly Data/LocationData/data/ukbmssitelocationdata2024.csv')
+```
+
+# Data Inspection
+
+Notes from UKBMS pages:
+
+*The UKBMS relies on the creation of abundance indices, i.e. based on the number of individual butterflies recorded in transect sections and sites. These indices are a relative rather than an absolute measure of the size of a population. The site index reflects a more or less constant proportion of the number of butterflies present, although the proportion seen is likely to vary according to species; some butterfly species, such as Marbled White are conspicuous, whereas others such as Dingy Skipper are much less likely to be detected. Indices have been shown to relate closely to other, more intensive, measures of population size such as mark, release, recapture (MRR) methods*.
+
+*This dataset comprises individual site indices for UK butterfly species calculated from data from the UK Butterfly Monitoring Scheme (UKBMS). Site indices are a relative rather than an absolute measure of the size of a population, and have been shown to relate closely to other, more intensive, measures of population size such as mark, release, recapture (MRR) methods. The site index can be thought of as a relative measure of the population size, being a more or less constant proportion of the number of butterflies present. The proportion seen is likely to vary according to species; some butterfly species are more conspicuous and thus more easily detected, whereas others are much less easy to see.*
+
+*Site indices are only calculated at sites with sufficient monitoring visits throughout the season, or for targeted reduced effort surveys (timed observations, larval web counts and egg counts) where counts are generally obtained as close to the peak of the flight period as possible and are subsequently adjusted for the time of year and size of the site (area of suitable habitat type for a given species). Wider Countryside Butterfly Survey (WCBS) sites are thus excluded because they are based on very few visits from which indices of abundance are not calculated. For transect sites, a statistical model (a General Additive Model, 'GAM') is used to impute missing values and to calculate a site index. Each year most transect sites (over 90%) produce an index for at least one species and in recent years site indices have been calculated for over 2,000 sites across the UK.*
+## Quality and Completeness 
+
+NB '-2' flag indicates *"a species was recorded at a given site in a given year but the site was not monitored sufficiently within the flight period of that species in that year to calculate an accurate site index"*
+
+```{R}
+SiteIndices %>%
+  group_by(SPECIES) %>%
+  summarise(PercInsufficient = 100*mean( SITE_INDEX == -2)) %>%
+  ggplot(aes( y = SPECIES, x = PercInsufficient ))+
+  geom_point()
+
+```
+
+Where a species has *never* been seen at a site, there is no entry. This results in radically different number of observations per species:
+
+```{r}
+SiteIndices %>%
+  count(SPECIES, name = 'NumberObservations') %>%
+  ggplot(aes( y = SPECIES, x = NumberObservations ))+
+  geom_point()+
+  scale_x_log10()
+
+```
+
+## Number of sites species seen at
+
+```{r}
+SiteIndices %>%
+  distinct(SITE_CODE , SPECIES) %>%
+  count(SPECIES, name = 'N_Sites_Seen_At') %>%
+  ggplot(aes( y = SPECIES, x = N_Sites_Seen_At ))+
+  geom_point()
+```
+
+## Percentage of 'true-zero' observations. 
+
+```{r}
+SiteIndices %>%
+  group_by(SPECIES) %>%
+  summarise(PercZero = 100*mean( SITE_INDEX == 0)) %>%
+  ggplot(aes( y = SPECIES, x = PercZero ))+
+  geom_point()
+```
+
+## Max values
+
+Some very large outliers, in all species. 'Large blue' has largest skew - makes sense as very localised. 
+
+```{r}
+SiteIndices %>%
+  group_by(SPECIES) %>%
+  filter( SITE_INDEX>0) %>%
+  summarise(Mx = max( SITE_INDEX),
+            Mn = min(SITE_INDEX ), 
+            Av = mean( SITE_INDEX), 
+            GeoAv = exp(mean(log(SITE_INDEX)))) %>%
+  ggplot(aes( y = SPECIES))+
+  geom_point(aes(x = Mx ))+
+  geom_point(aes(x = Mn ))+
+  geom_point(aes(x = Av ), col = 2)+
+  geom_point(aes(x = GeoAv ), col = 3)+
+  scale_x_log10()
+```
+
+### Sum per site / time 
+
+Measure is a relative measure per site. How constant is the sum of site indices?
+Most cluster around 1000 total units of relative abundance, but a considerable distribution around this. 
+
+```{R}
+SiteIndices %>%
+  filter(SITE_INDEX >0 ) %>%
+  group_by(SITE_CODE , YEAR) %>%
+  summarise(Sum_SiteIndex = sum(SITE_INDEX )) -> xxx
+
+
+filter(xxx, Sum_SiteIndex > 100000)
+
+SiteIndices %>%
+  arrange(desc(SITE_INDEX ))
+
+SiteIndices %>%
+  filter(SITE_INDEX >10000 ) %>%
+  count( COMMON_NAME  )
+
+xxx %>%
+  ggplot(aes(Sum_SiteIndex ))+
+  geom_histogram()+
+  scale_x_log10()
+
+```
+
+
+## Duplicates
+
+Cases where multiple different values given for same species / site / year.
+
+2,776 / 821,300, so small proportion. 
+
+Top two are of non-resident migrants, (*Vanessa cardui*, *Vanessa atalanta*) so probably will be excluded from eventual analyses anyway. 
+Where there are multiple measurements that differ, for now will just exclude as unreliable.  
+
+
+```{r}
+SiteIndices %>%
+  add_count( SITE_CODE,  SPECIES,  YEAR) %>%
+  add_count( SITE_CODE,  SPECIES,  YEAR,SITE_INDEX,
+             name = 'N2' ) %>%
+  filter(n>1 ) -> duplicate_site_year_sp
+
+duplicate_site_year_sp%>%
+  count( SPECIES ,sort = TRUE)
+
+## Only get the issue in a subset of years, especially 2004-2007
+duplicate_site_year_sp%>%
+  count(YEAR ,sort = TRUE)
+
+## In some cases both options are the same, so can safely use it
+duplicate_site_year_sp %>%
+  filter( N2 ==2)
+
+```
+
+# Example Species Trends
+
+```{r}
+SiteIndices %>%
+  filter(COMMON_NAME == 'Peacock') %>%
+  filter( SITE_CODE <10) %>%
+  ggplot( aes (x = YEAR, y = SITE_INDEX, group =SITE_CODE))+
+  geom_line()+
+  geom_point()+
+  facet_wrap( ~SITE_CODE,labeller = label_both)
+```
+
+### Distribution of Site data
+
+Many sites have less than 10 years of surveys. Take quite a long cut-off to thin data before more precise processing
+
+```{R}
+LocationData$N_yrs_surveyed %>% hist(main = 'N_yrs_surveyed' , nclass = 60)
+LocationData$Survey_type %>% table
+
+# 529 more than 20 years
+sum(LocationData$N_yrs_surveyed >= 20)
+```
+
+### Species Distribution 
+
+Want species that are in a reasonable number of long time series
+
+```{R}
+LocationData %>%
+  filter(N_yrs_surveyed >= 20 ) -> LocsTwentyObs
+
+## Distribution of sites per species with obs (including zero)
+LocsTwentyObs %>%
+  left_join(SiteIndices,
+            by = c('Site_Number' = 'SITE_CODE')) %>%
+  count(Site_Number ,SPECIES   ) %>%
+  filter( n>=20) %>%
+  count(SPECIES ,
+        name = 'Number of Sites with at least 20 obs') %>%
+  ggplot(aes( y = SPECIES, x = `Number of Sites with at least 20 obs`))+
+  geom_point()
+```
+
+### Spatial Distibution of 20+ Years Sites
+
+```{R}
+LocsTwentyObs %>%
+  ggplot(aes( x = Easting, y= Northing)) +
+  geom_point()+
+  geom_hline(yintercept = 450000)+
+  geom_hline(yintercept = 0)+
+  geom_vline(xintercept = 300000)
+
+
+
+```
+
+
+
+
+
+
+
+### Time Period
+
+Tail of data at start. Enough by 1976
+
+```{r}
+LocationData %>%
+  filter(N_yrs_surveyed >= 20, 
+         Northing < 450000,
+         Northing > 0,
+         Easting > 300000) %>%
+  arrange(First_year_surveyed ) %>%
+  mutate(O = rank( First_year_surveyed,
+                   ties.method = 'random') ) %>%
+  ggplot(aes(y = O ))+
+  geom_errorbarh(aes(xmin= First_year_surveyed,
+                     xmax = Last_year_surveyed))+
+  scale_x_continuous(breaks =seq(1970,2024, by=2))
+
+```
+
+
+## Filtering 
+
+Data Selection:
+- exclude observations from before 1975 
+- exclude '-2' entries
+- exclude species / site / year combinations with multiple different recorded values
+
+Site Selection:
+- SE bounding box
+- at least 20 years of surveys
+= At least 18 observations per species per site
+
+Species Selection:
+After site filtering:
+- at least 20 sites with at least 18 observations, of which at least 10 are non-zero. 
+
+
+```{r}
+LocationData %>%
+  filter(N_yrs_surveyed >= 20, 
+         Northing < 450000,
+         Northing > 0,
+         Easting > 300000) %>%             # 406 sites
+  left_join(SiteIndices,
+            by = c('Site_Number' = 'SITE_CODE')) %>%
+  select(Site_Name, Easting, Northing, SPECIES,  YEAR, SITE_INDEX ) %>%
+  filter(YEAR  >1975,
+         SITE_INDEX != -2) %>%
+  group_by(Site_Name, SPECIES, YEAR) %>%  ## de-duplicating and removing clashes
+  filter(n_distinct(SITE_INDEX) == 1) %>%
+  slice(1) %>%
+  ungroup() %>%
+  group_by(Site_Name, SPECIES) %>%
+  filter(n() >= 18,sum(SITE_INDEX > 0) >= 10) %>% # number of obs and non-zero obs
+  ungroup() -> JoinedData1
+
+JoinedData1%>%
+  distinct(Site_Name, SPECIES) %>%
+  count(SPECIES,
+        name = 'N_Sites per Sp with at least 18 obs')%>%
+  arrange(`N_Sites per Sp with at least 18 obs`)->  SitesPerSp
+
+SitesPerSp  # 8 quite localised species to be removed as less than 20 sites
+
+# Papilio machaon   
+# Melitaea athalia   
+# Melitaea cinxia   
+# Thymelicus acteon
+# Fabriciana adippe     
+# Satyrium pruni          
+# Thecla betulae
+# Plebejus argus
+
+JoinedData1 %>%
+  left_join(SitesPerSp) %>%
+  filter(`N_Sites per Sp with at least 18 obs` >=20 ) -> JoinedData2
+
+JoinedData2 %>%
+  select(  Site_Name,Easting, Northing, SPECIES,YEAR,SITE_INDEX ) -> FiltDf_Compact
+
+write_csv( FiltDf_Compact, 'Butterfly Data/FiltDf_Compact.csv')
+
+```
+
+
+### Building [Site/Year/Sp] - Permutation Motif Dataframe
+
+```{R}
+library(statcomp)
+
+
+### To make super explicit, build map over Year and species
+### Not the fastest, but less chance of error
+
+df = FiltDf_Compact
+Sp    = 'Aglais io'
+Site      = 'Woodwalton Farm' 
+
+
+FindMotifs_NA_Robust <- function( Sp, Site, df){
+  
+  ## Data Filter
+  df %>%
+    filter(Site_Name == Site,
+           SPECIES == Sp) -> df_focal
+  
+  ### ordinal_pattern_time_series() NA handling documentation is not correct. It defaults to returning motif '0', not NA. 
+  
+  
+  ## Build new df, then left_join, to create NAs where the gaps are
+  data.frame( YEAR =  seq.int(min(df_focal$YEAR ), 
+                              max (df_focal$YEAR ))) %>%
+    left_join(df_focal, by = 'YEAR') -> NA_DF
+  
+  ## Add small noise to break potential ties. Site Index are integers so +/- 0.1 
+  ## will only break ties, not reorder values. 
+  set.seed(1)
+  NA_DF$X_perturb <- NA_DF$SITE_INDEX + runif(n = nrow(NA_DF),
+                                              min = -0.1,
+                                              max = 0.1)
+  
+  ## As a rule, assigning 'year' to start of motif. 
+  blocks <- embed(NA_DF$X_perturb, 3) # NB embed reverses columns
+  NA_DF$Complete  <-  c(complete.cases(blocks), FALSE, FALSE)  ## Last two can't be complete
+  
+  ## Don't assign a motif  when all are zero
+  raw_blocks <- embed(NA_DF$SITE_INDEX, 3)
+  NA_DF$AllZero <- c(rowSums(raw_blocks == 0, na.rm = TRUE) == 3L, FALSE,FALSE)
+  
+  ## Assigning motifs, and adding 1 so motifs span 1:6
+  NA_DF$Motif<-(ordinal_pattern_time_series(NA_DF$X_perturb, 3)+1)   
+  
+  ## Prep output:
+  NA_DF %>%
+    filter( Complete, !AllZero) %>%
+    select( YEAR, Motif ) -> out_df
+  out_df$Sp = Sp
+  out_df$Site = Site
+  return(out_df)
+}
+
+
+
+```
+
+## Checking 
+
+```{r}
+test_motifs <- FindMotifs_NA_Robust(  Sp = 'Aglais io',
+                                      Site= 'Woodwalton Farm',
+                                      df =FiltDf_Compact)
+
+FiltDf_Compact %>%
+  filter(Site_Name == 'Woodwalton Farm',
+         SPECIES == 'Aglais io') %>%
+  ggplot(aes( x = YEAR))+
+  geom_point(aes(y = SITE_INDEX))+
+  geom_vline( xintercept = 1972:2024, col = 2)+
+  geom_vline( aes(xintercept = YEAR))+
+  geom_point(data=test_motifs, aes(y = 0,col = factor(Motif)), size = 2 )+
+  theme_classic()
+```
+
+
+NB, where two of the three elements are present, there isn't zero information, since certain motifs are ruled out. However, for simplicity, and given than the data is not all that patchy, this is not included for simplicity. 
+
+
+## Skipper Challenges
+
+Differentiating small skippers and essex skippers is a challenge
+
+In UKBMS they are summed into a single "Thymelicus lineola/sylvestris" category. 
+
+I will just use this, as they are ecologucally very similiar. 
+
+```{R}
+
+FiltDf_Compact %>%
+  filter(SPECIES     %in% c("Thymelicus lineola","Thymelicus lineola/sylvestris", "Thymelicus sylvestris")) %>%
+  pivot_wider( names_from = SPECIES, values_from = SITE_INDEX) %>%
+  arrange( Site, YEAR) 
+```
+
+
+
+### Mapping function across all site and species:
+
+```{r eval = FALSE}
+SpSites<- distinct(FiltDf_Compact, Site_Name,SPECIES) 
+
+FullMotif_df <- map2_dfr( .f = FindMotifs_NA_Robust,
+                          SpSites$SPECIES,
+                          SpSites$Site_Name,
+                          df =FiltDf_Compact )
+
+## filtering to be just post 1980 due to earlier years having many species with very few sites. 
+
+FullMotif_df %>%
+  count(Sp, YEAR ) %>%
+  group_by(Sp) %>%
+  summarise( min(n), mean(n))%>%
+  arrange(  `min(n)` ) %>%
+  print( n = 39)
+
+FullMotif_df %>%
+  count(Sp, YEAR ) %>%
+  filter( n< 6) %>%
+  count( YEAR)%>%
+  print( n = 50)
+
+### NB Two species are just too unusual to be reliable 'Euphydryas aurinia'  'Hamearis lucina'    
+## Left in the dataframe, but will filter before fitting
+
+FullMotif_df %>%
+  filter( YEAR >1979) %>%
+  write_csv('Butterfly Data/FullMotif_df.csv')
+```
+
+
+### Motif Summary 
+
+```{r}
+FullMotif_df <-read_csv('Butterfly Data/FullMotif_df.csv')
+
+FullMotif_df %>%
+  count( Motif)
+```
+
+# Data Distribution Figure For Paper
+
+
+
+### Underlying Map Data Prep 
+```{r eval = FALSE}
+## Boundary-Line Data from Ordnance Survey 
+## https://osdatahub.os.uk/data/downloads/open/BoundaryLine (Too large for github)
+gb <- st_read( "bdline_gpkg_gb/Data/bdline_gb.gpkg",
+  layer = "country_region")
+
+gb_small <- st_crop( gb, xmin = 100000, xmax = 700000,
+  ymin = 0,ymax = 460000)
+
+# Simplify coastline/boundary
+gb_small <- st_simplify( gb_small, dTolerance = 200,preserveTopology = TRUE)
+
+# Save compactly
+st_write( gb_small, "Map Data/GB_map_compact.gpkg")
+```
+
+
+
+```{R}
+LocationData %>%
+  mutate( InData = Site_Name%in% unique(FullMotif_df$Site)) %>% 
+  mutate(InBox = Northing<450000 & Northing>0& Easting>300000 ) -> MapData
+
+gb <- st_read("Map Data/GB_map_compact.gpkg")
+
+ggplot(gb) +
+  geom_sf(
+    fill = "grey80",
+    colour = "grey30",
+    linewidth = 0.4
+  ) +
+  geom_point( data = MapData,
+              aes( x = Easting, y = Northing,colour = InData),
+              size = 0.5  ) +
+  geom_point( data = filter(MapData, InData),
+              aes( x = Easting, y = Northing,colour = InData),
+              size = 2  ) +
+  geom_hline( yintercept = 450000, linewidth = 0.5) +
+  geom_vline( xintercept = 300000,linewidth = 0.5) +
+  coord_sf(  crs = 27700,
+             xlim = c(100000, 700000),
+             ylim = c(0, 460000),
+             expand = FALSE ) +
+  scale_colour_manual( values = c("FALSE" = "grey50",  "TRUE" = "black"),
+                       guide = "none") +
+  xlab('')+  ylab('')+
+  theme_minimal() +
+  theme( panel.grid.major = element_line(colour = "grey85",linewidth = 0.25) )-> Map
+Map
+```
+
+```{R}
+FullMotif_df %>%
+  group_by(Site)%>%
+  summarise(FirstYear= min(YEAR))%>%
+  arrange(FirstYear ) %>%
+  mutate(O = rank( FirstYear,
+                   ties.method = 'random') )  -> FirstYears
+
+plot_df <- FullMotif_df %>%
+  group_by(Site, YEAR) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  left_join(FirstYears, by = "Site") %>%
+  arrange(Site, YEAR) %>%
+  group_by(Site) %>%
+  mutate( next_YEAR = lead(YEAR)) %>%
+  ungroup()
+
+ggplot(plot_df, aes(y = O)) +
+  geom_segment(data = subset(plot_df, next_YEAR == YEAR + 1),  # Lines only between consecutive years
+               aes(x = YEAR, xend = next_YEAR, yend = O),
+               linewidth = 0.2) +
+  geom_point( aes(x = YEAR), size = 0.25) +
+  scale_x_continuous(breaks = seq(1980, 2022, by = 6)) +
+  theme_classic()  +
+  theme(axis.text.y = element_blank())+
+  ylab("Site (Ordered By First Year)") +
+  xlab("Year\n(Start of 3-year block)")-> DataSiteTimeDistFig
+
+DataSiteTimeDistFig
+```
+
+#### Further data summary
+
+```{r}
+
+N_SitePerSp <- FullMotif_df %>%
+      filter( !(Sp %in% c('Euphydryas aurinia' , 'Hamearis lucina',# outliers of low data (less than 500)
+                      "Thymelicus sylvestris", "Thymelicus lineola")) ) %>%
+  count(Sp, Site) %>%
+  count( Sp, name = 'N_SitePerSp')
+
+
+
+N_ObsPerSp <- FullMotif_df %>%
+      filter( !(Sp %in% c('Euphydryas aurinia' , 'Hamearis lucina',# outliers of low data (less than 500)
+                      "Thymelicus sylvestris", "Thymelicus lineola")) ) %>%
+  count(Sp, name = 'N_ObsPerSp' )
+
+
+left_join(N_SitePerSp, N_ObsPerSp ) %>%
+  ggplot( aes(  x = N_SitePerSp,N_ObsPerSp ))+
+  geom_point()+
+  theme_classic() +
+  xlab( 'Number of Sites Observed At' )+
+  ylab( 'Number of Observed Motifs')+
+  scale_y_continuous(limits =c(0,NA))+
+  scale_x_continuous(limits =c(0,NA)) -> DataAmountPlot
+
+DataAmountPlot
+
+
+```
+
+### Combining into one
+
+```{R}
+
+
+final_plot <- ( (Map + labs(title = "a) Geographic Distribution of\nIncluded Transects")) /
+  (DataAmountPlot + labs(title = "b) Species-level Motif Observation Counts"))
+) + plot_layout(heights = c(1, 1)) | (DataSiteTimeDistFig + labs(title = "c) Site-Observations Through Time"))
+
+final_plot
+
+ggsave( 'MS_Figs/ButterflyDataFig.png', height =6, width =8)
+
+```
+
+
+## A lot more than expected of motif 6 (double decline)
+
+### Overall entropy per species
+```{R}
+FullMotif_df %>%
+  count(Sp, Motif) %>%
+  pivot_wider( names_from = Motif, values_from = n) %>%
+  rowwise() %>%
+  mutate( N = sum(c_across(`1` :`6` )), 
+          PE = { x <- c_across(`1` :`6` );
+          -sum((x/N)*log((x/N))) / log(6)}
+  ) -> OverallSp_PE
+
+
+### Species with more observations demonstrate  higher PE... 
+### But counts large enough that this can't just be a sampling effect. 
+OverallSp_PE %>%
+  ggplot( aes( y = PE, x = N))+
+  geom_point()
+
+```
+
+### Species inspection
+
+```{r}
+Trends <- read_csv('Butterfly Data/SpeciesTrends/data/ukbmsspeciestrends2024.csv') %>%
+  select(SCI_NAME , F_TRENDDETAIL )
+
+OverallSp_PE %>%
+  left_join(Trends, by=c('Sp' = 'SCI_NAME')) %>%
+  arrange( PE)
+
+OverallSp_PE %>%
+  left_join(Trends, by=c('Sp' = 'SCI_NAME')) %>%
+  ggplot( aes( x= F_TRENDDETAIL , y = PE))+
+  geom_boxplot()+
+  geom_point()
+
+```
+
+
+Looking overall, by UKBMS trend status, get a good range of PE across the categories
+
+### Relative size of datasets for each species
+
+~ 10x data difference between most and least, in terms of motif observations. 
+
+```{R}
+FullMotif_df %>%
+  count(Sp, sort = TRUE)
+
+FullMotif_df %>%
+  count(Sp, sort = TRUE) %>% 
+  tail()
+```
+
+
+# Session Info
+
+```{r}
+sessionInfo()
+
+```
+

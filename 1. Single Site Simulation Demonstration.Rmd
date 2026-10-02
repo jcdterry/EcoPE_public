@@ -1,0 +1,347 @@
+---
+title: "Single Site Simulation Demonstration"
+author: "Chris Terry"
+date: "2026-06-16"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r warning=FALSE, message=FALSE}
+library(cmdstanr)
+library(posterior)
+library(statcomp)
+library(tidyverse)
+library(cowplot)
+
+
+source("R/pe_data_generation.R")
+source("R/pe_model_postprocess.R")
+source("R/pe_prior_calibration.R")
+```
+
+### NSB with Regression Model
+
+```{r}
+
+nsb_baseline_model <- cmdstan_model("stan/core_01_static_nsb_pe_optimised.stan")
+nsb_baseline_model
+
+```
+
+## Prep Data for STAN
+
+Data needs to be in a list format with motifs.
+
+For the event-level Stan models, `y` is a plain integer vector: one motif event
+per entry, coded from `1` to `K`. For 3-motifs, `K = 6`.
+
+```{R}
+make_data_bundle_single_site <- function(y , m=3){
+  Z <- ordinal_pattern_time_series(y, m)+1 # Vector of motifs, from 1
+  Z <- Z[!is.na(Z)]
+  list(N = length(Z),
+       K = as.integer(factorial(m)),
+       y = as.integer(Z),
+       prior_only = 0)
+}
+```
+
+
+# Data
+
+## Underlying Time Series Data
+
+### High and low PE values
+
+Single very long time series for start and end parameters, from which to calculate 'true' PE
+
+```{r}
+AR2 = -1.1
+sim_LOWPE_long <- simulate_feedback_sites(n_site = 2,n_year = 10000,
+                                          delayed_feedback = AR2,
+                                          sd_start = 0.05, sd_end = 0.05)
+
+sim_HIGHPE_long <- simulate_feedback_sites(n_site = 2,n_year = 10000,
+                                           delayed_feedback = AR2,
+                                           sd_start = 0.3, sd_end = 0.3)
+
+## Just for coding ease and using just one function, making from 2 sites, then will drop 1
+Long_singlesite_LOWPE <- sim_LOWPE_long$abundance_matrix[,1]
+Long_singlesite_HIGHPE <- sim_HIGHPE_long$abundance_matrix[,1]
+```
+
+### 'True' (long sample) PE
+
+```{r}
+## Compare long series of fixed noise:
+True_LowPE<- permutation_entropy(ordinal_pattern_distribution(Long_singlesite_LOWPE, 3))
+True_HighPE<- permutation_entropy(ordinal_pattern_distribution(Long_singlesite_HIGHPE,3))
+
+```
+
+## Prior Only Model
+
+Checking that the prior is genuinely uninformative, and that the prior-only posterior PE spans full 0:1 range. 
+
+```{r}
+pp<- make_data_bundle_single_site(Long_singlesite_LOWPE)
+pp$prior_only <- 1
+
+prior_only_fit <- nsb_baseline_model$sample(data = pp,
+                                            chains = 4, parallel_chains = 4,
+                                            adapt_delta = 0.95, refresh = 0)
+
+prior_only_fit 
+```
+
+# Repeat fitting to short datasets
+
+## Chopping data into short (32 observation) time series:
+
+```{r}
+batch_function <- function(batch, length =50, ts){
+  if( length(ts)< batch*length){stop('time series too short')}
+  start<- 1+((batch-1)*length)
+  end<- batch*length
+  return(ts[ start:end   ])
+}
+
+LowPE_TS_list_short <- map(1:100,   batch_function , ts = Long_singlesite_LOWPE, length = 32)
+HighPE_TS_list_short <- map(1:100,   batch_function , ts = Long_singlesite_HIGHPE, length = 32)
+
+```
+
+
+## Fit NSB Baseline Model across list
+
+
+```{r}
+fit_model_baseline <-  function(ts ){
+  xx<- make_data_bundle_single_site(ts)
+  fit <- nsb_baseline_model$sample(data = xx,
+                                   chains = 4, parallel_chains = 4,
+                                   adapt_delta = 0.95, refresh = 0)
+  df <- fit$summary(variables = c('pe_nsb', 'pe_plugin'))
+  return(df)
+}
+```
+
+
+
+## Fit NSB Baseline Model acros list
+
+Takes several minutes to run
+
+```{r eval=FALSE}
+LowPE_modelfits_short<- map_df(LowPE_TS_list_short,fit_model_baseline)
+HighPE_modelfits_short<- map_df(HighPE_TS_list_short,fit_model_baseline)
+
+write_csv( LowPE_modelfits_short, file = 'model fits/LowPE_modelfits_short32.csv')
+write_csv( HighPE_modelfits_short,file = 'model fits/HighPE_modelfits_short32.csv')
+```
+
+```{R}
+LowPE_modelfits_short <- read_csv(file = 'model fits/LowPE_modelfits_short32.csv')
+HighPE_modelfits_short<- read_csv(file = 'model fits/HighPE_modelfits_short32.csv')
+```
+
+### Measure Naive PE for each short series
+
+```{r}
+PE3_ts <- function(ts ){ permutation_entropy(ordinal_pattern_distribution(ts, 3))   }
+
+naive_lowPE_measures_short<- map_dbl(LowPE_TS_list_short,PE3_ts )
+naive_highPE_measures_short<-map_dbl(HighPE_TS_list_short,PE3_ts )
+```
+
+## Plotting out posterior of PE with NSB estimator, compared to naive and true PE.  
+
+### Low PE dataset
+```{R}
+## ranks
+LowPE_modelfits_short  %>%
+  filter( variable == 'pe_plugin') %>%
+  mutate( rank =  rank(mean, ties.method = 'first')) %>%
+  select(Obs_Val = mean, rank)-> Low_Ranks_short
+
+
+## Average
+LowPE_modelfits_short  %>%
+  filter( variable == 'pe_nsb') %>%
+  summarise( Overall_Mean = mean( mean) , 
+             Overall_q5 = mean( q5) , 
+             Overall_q95 = mean( q95), 
+             x = 'Average')%>%
+  ggplot(aes( y =Overall_Mean, x = x))+
+  geom_errorbar(aes( ymin = Overall_q5, ymax = Overall_q95),
+                col = 'grey80')+
+  geom_point()+
+  geom_point(y = mean(Low_Ranks_short$Obs_Val), col = 'red')+
+  geom_hline(yintercept = True_LowPE, col = '#0072B2' )+
+  theme_classic()+
+  scale_y_continuous(limits = c(0.7, 1))+
+  theme(axis.title.y = element_blank(),
+        axis.line.y= element_blank(),
+        axis.ticks.y= element_blank(),
+        axis.text.y = element_blank())+
+  xlab( ' \n ') -> Low_pe_av
+
+## Plot
+LowPE_modelfits_short  %>%
+  filter( variable == 'pe_nsb') %>%
+  bind_cols( Low_Ranks_short) %>%
+  ggplot(aes( y =mean, x = rank))+
+  geom_errorbar(aes( ymin = q5, ymax = q95), col = 'grey80')+
+  geom_point()+
+  geom_point(aes(y = Obs_Val), col = 'red')+
+  geom_hline(yintercept = True_LowPE, col = '#0072B2' )+
+  theme_classic()+
+  scale_y_continuous(limits = c(0.7, 1))+
+  xlab( 'Sample')+
+  ylab('Permutation Entropy') -> Short_LowPE_Fig
+
+## Combine
+plot_grid(Short_LowPE_Fig,
+          Low_pe_av,
+          rel_widths = c(10,1) )
+
+```
+
+### High PE dataset
+```{R}
+## ranks
+HighPE_modelfits_short  %>%
+  filter( variable == 'pe_plugin') %>%
+  mutate( rank =  rank(mean, ties.method = 'first')) %>%
+  select(Obs_Val = mean, rank)-> High_Ranks_short
+
+
+## Average
+HighPE_modelfits_short  %>%
+  filter( variable == 'pe_nsb') %>%
+  summarise( Overall_Mean = mean( mean) , 
+             Overall_q5 = mean( q5) , 
+             Overall_q95 = mean( q95), 
+             x = 'Average')%>%
+  ggplot(aes( y =Overall_Mean, x = x))+
+  geom_errorbar(aes( ymin = Overall_q5, ymax = Overall_q95),
+                col = 'grey80')+
+  geom_point()+
+  geom_point(y = mean(High_Ranks_short$Obs_Val), col = 'red')+
+  geom_hline(yintercept = True_HighPE, col = '#0072B2' )+
+  theme_classic()+
+  scale_y_continuous(limits = c(0.7, 1))+
+  theme(axis.title.y = element_blank(),
+        axis.line.y= element_blank(),
+        axis.ticks.y= element_blank(),
+        axis.text.y = element_blank())+
+  xlab( ' \n ') -> High_pe_av
+
+## Plot
+HighPE_modelfits_short  %>%
+  filter( variable == 'pe_nsb') %>%
+  bind_cols( High_Ranks_short) %>%
+  ggplot(aes( y =mean, x = rank))+
+  geom_errorbar(aes( ymin = q5, ymax = q95), col = 'grey80')+
+  geom_point()+
+  geom_point(aes(y = Obs_Val), col = 'red')+
+  geom_hline(yintercept = True_HighPE, col = '#0072B2' )+
+  theme_classic()+
+  scale_y_continuous(limits = c(0.7, 1))+
+  xlab( 'Sample')+
+  ylab('Permutation Entropy') -> Short_HighPE_Fig
+
+## Combine
+plot_grid(Short_HighPE_Fig, 
+          High_pe_av,
+          rel_widths = c(10,1) )
+
+```
+
+### Creating joint figure
+
+```{r}
+
+## Legend Constructor
+df <- data.frame( x = 1, y = 1,grp = c("NSB-Model Posterior Mean", "Naive Observation", '"True"'))
+legend <- get_legend(ggplot(df, aes(x, y, colour = grp)) +
+                       geom_point(data = subset(df, grp != '"True"'), size = 3) +
+                       geom_line(data = subset(df, grp == '"True"'),
+                                 aes(group = grp), linewidth = 1) +
+                       scale_colour_manual(values = c( "NSB-Model Posterior Mean" = "black",
+                                                       "Naive Observation" = "red",
+                                                       '"True"' = "#0072B2"),
+                                           name = NULL ) +
+                       guides( colour = guide_legend(nrow = 1, 
+                                                     override.aes = list(alpha = 1)) ) +
+                       theme_void() +
+                       theme(legend.position = "bottom",
+  legend.text = element_text(size = 10),
+  legend.key.size = unit(10, "pt")))
+
+
+Panela <- plot_grid(Short_LowPE_Fig,
+                    Low_pe_av,align = 'h',
+                    rel_widths = c(10,1) )
+
+Panelb <-  plot_grid(Short_HighPE_Fig, 
+                     High_pe_av,align = 'h',
+                     rel_widths = c(10,1) )
+
+main_plots <- plot_grid( Panela, Panelb,
+                         labels = c("a) ", "b)"),scale = 0.95,
+                         nrow = 1,rel_widths = c(1, 1))
+
+demo1plot <- plot_grid(main_plots,legend,
+                       ncol = 1, rel_heights = c(1, 0.12))
+
+demo1plot
+
+saveRDS(demo1plot, "MS_figs/ggplot objects/demo1plot.rds")
+ggsave(demo1plot, filename = 'MS_figs/ggplot objects/demo1plot.png', width = 9, height =3  )
+
+```
+
+### Distribution of diferences to truth
+
+Mean of posterior distribution across the 100 draws is much better centered around the truth
+
+```{r}
+LowPE_modelfits_short  %>%
+  filter( variable == 'pe_nsb') %>%
+  bind_cols(Low_Ranks_short) %>%
+  mutate( True_PE=True_LowPE, 
+          Posterior_PEDiff = mean  - True_PE,
+          Obs_PEDiff = Obs_Val    - True_PE) %>%
+  select( rank , Posterior_PEDiff, Obs_PEDiff  ) %>%
+  pivot_longer( ends_with('PEDiff')) %>%
+  ggplot(aes( value, fill = name))+
+  geom_boxplot()+
+  geom_vline( xintercept = 0)+
+  theme_classic()
+
+
+HighPE_modelfits_short  %>%
+  filter( variable == 'pe_nsb') %>%
+  bind_cols( High_Ranks_short) %>%
+  mutate( True_PE=True_HighPE, 
+          Posterior_PEDiff = mean  - True_PE,
+          Obs_PEDiff = Obs_Val    - True_PE) %>%
+  select( rank , Posterior_PEDiff, Obs_PEDiff  ) %>%
+  pivot_longer( ends_with('PEDiff')) %>%
+  ggplot(aes( value, fill = name))+
+  geom_boxplot()+
+  geom_vline( xintercept = 0)+
+  theme_classic()
+
+
+```
+
+
+
+# Session Info
+```{r}
+sessionInfo()
+```

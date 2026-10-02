@@ -1,0 +1,283 @@
+---
+title: "Fitting To Butterfly Data"
+author: "Chris Terry"
+date: "2026-07-09"
+output:
+  html_document:
+    toc: true
+editor_options:
+  chunk_output_type: console
+---
+
+```{r  message = FALSE}
+library(cmdstanr)
+library(posterior)
+library(statcomp)
+library(tidyverse)
+
+multi_site_model <- cmdstan_model("stan/core_03_multisite_linear_pe_trend_Optimised.stan")
+FullMotif_df <-read_csv('Butterfly Data/FullMotif_df.csv')
+
+```
+
+# Fitting each species individually
+
+## Prepping Butterfly Data Bundle for Model
+
+```{r}
+make_multisite_butterfly_bundle <- function(data_df,
+                                            prior_only = 0,
+                                            slope_prior_sd = 0.5,
+                                            sigma_site_scale = 0.35,
+                                            sigma_period_scale = 0.15) {
+  
+  ## Check just one species
+  if( length(unique( data_df$Sp)) !=1 ){stop('more than one species')}
+  
+  ## Enforce consistent ordering
+  data_df %>%
+    arrange(Site, YEAR) -> data_df
+  
+  ## Time IDs for each year
+  years_in_data <- sort(unique(data_df$YEAR ))
+  N_times =  length(years_in_data)
+  data_df$time_id = as.integer(seq_len(N_times)[factor(data_df$YEAR)])
+  
+  ## Site IDs for each site 
+  N_sites =  length(unique(data_df$Site ))
+  data_df$site_id = as.integer(seq_len(N_sites)[factor(data_df$Site)])
+  
+  ## Year labelling based on START of motif (different to simulation!)
+  x_range <- range(years_in_data)
+  
+  data_df$time_scaled = (data_df$YEAR - mean(x_range)) / diff(x_range)
+  time_grid_scaled <-(years_in_data - mean(x_range)) / diff(x_range)
+  
+  ##   Build List
+  stan_data <- list(N = nrow(data_df),
+                    K = 6L,
+                    S = N_sites,
+                    G = N_times,
+                    y = as.integer(data_df$Motif),
+                    site = data_df$site_id,
+                    time_id = data_df$time_id,
+                    time_scaled = as.numeric(data_df$time_scaled),
+                    time_grid_scaled = as.numeric(time_grid_scaled),
+                    
+                    #Prior Flag 
+                    prior_only = as.integer(prior_only),
+                    
+                    ## Changeable Priors
+                    slope_prior_sd = slope_prior_sd,
+                    sigma_site_scale = sigma_site_scale,
+                    sigma_period_scale = sigma_period_scale)
+  
+  ## Object Length Checkers
+  stopifnot( length(stan_data$time_scaled) == stan_data$N,
+             length(stan_data$time_grid_scaled) == stan_data$G,
+             length(stan_data$y) == stan_data$N,
+             length(stan_data$site) == stan_data$N,
+             length(stan_data$time_id) == stan_data$N)
+  
+  return(stan_data)
+  
+}
+```
+
+# Fitting across species with LM embedded
+
+```{R}
+model_label <- "period_sd_08_O2"
+```
+
+## Function to save diagnostics and summary of key parameters
+
+```{R}
+save_multisite_pe_fit <- function(fit,
+                                  species,
+                                  model_label,
+                                  stan_data,
+                                  event_data,
+                                  output_root = "Butterfly_fits") {
+  species_folder <- gsub("/", "_", species)
+  output_dir <- file.path(output_root, species_folder)
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  
+  output_file <- function(name) file.path(output_dir, paste0(model_label, "_", name))
+  
+  summary_variables <- c("alpha_nsb", "beta_time",
+                         "sigma_site", "sigma_period",
+                         "pe_population_time", "pe_period_time",
+                         "pe_slope", "pe_intercept")
+  
+  draw_variables <- c("pe_slope", "pe_intercept")
+  
+  fit$summary(summary_variables) %>%
+    write_csv(output_file("parameter_summary.csv"))
+  
+  fit$draws(draw_variables, format = "draws_df") %>%
+    as.data.frame() %>%
+    write_csv(output_file("pe_effect_draws.csv"))
+  
+  fit$summary( variables = "theta_period_time",
+               "mean", "median", "sd", "q5" = ~quantile(.x, 0.05), "q95" = ~quantile(.x, 0.95)) %>%
+    write_csv(output_file("inferred_motif_frequencies.csv"))
+  
+  
+  diagnostics <- fit$diagnostic_summary(quiet = TRUE)
+  
+  tibble(num_divergent = sum(diagnostics$num_divergent),
+         num_max_treedepth = sum(diagnostics$num_max_treedepth),
+         min_ebfmi = min(diagnostics$ebfmi),
+         ebfmi = paste(diagnostics$ebfmi, collapse = "; ")) %>%
+    write_csv(output_file("sampler_diagnostics.csv"))
+  
+  event_data %>%
+    distinct(YEAR) %>%
+    arrange(YEAR) %>%
+    mutate(time_id = row_number(),
+           time_scaled = stan_data$time_grid_scaled) %>%
+    write_csv(output_file("time_lookup.csv"))
+  
+  saveRDS( list( species = species,
+                 model_label = model_label,
+                 stan_data = stan_data,
+                 fit_metadata = fit$metadata()),
+           output_file("metadata.rds")
+  )
+}
+
+```
+
+# Fitting across species
+
+```{r }
+species_to_fit <- FullMotif_df %>%
+  distinct(Sp) %>%
+  arrange(Sp) %>%
+  filter( !(Sp %in% c('Euphydryas aurinia' , 'Hamearis lucina',# outliers of low data (less than 500)
+                      "Thymelicus sylvestris", "Thymelicus lineola")) )%>%  ## confusing skippers. (Keeping ,"Thymelicus lineola/sylvestris")
+  pull(Sp)
+
+fit_one_species <- function(species, i) {
+  print(species)
+  print(Sys.time())
+  
+  species_data <-  filter(FullMotif_df,
+                          Sp == species)
+  
+  stan_data <- make_multisite_butterfly_bundle(data_df = species_data,
+                                               slope_prior_sd = 0.5,
+                                               sigma_site_scale = 0.35,
+                                               sigma_period_scale = 0.8)
+  
+  fit <- multi_site_model$sample(data = stan_data,
+                                 chains = 4,
+                                 parallel_chains = 4,
+                                 iter_warmup = 1000,
+                                 iter_sampling = 1500,
+                                 adapt_delta = 0.95,
+                                 max_treedepth = 12,
+                                 seed = 1 + i,
+                                 refresh = 100)
+  
+  save_multisite_pe_fit(fit = fit,
+                        species = species,
+                        model_label = model_label,
+                        stan_data = stan_data,
+                        event_data = species_data,
+                        output_root = "Butterfly_fits")
+  invisible(gc())
+  return(species)
+}
+```
+
+### Fitting with error catcher
+
+```{r eval = FALSE}
+safe_fit_one_species <- safely(fit_one_species, otherwise = NULL, quiet = TRUE)
+
+fit_results <- imap(species_to_fit, safe_fit_one_species)
+
+run_log <- imap_dfr(fit_results, function(x, i) {
+  tibble(species = species_to_fit[[i]],
+         status = if (is.null(x$error)) "completed" else "failed",
+         error = if (is.null(x$error)) NA_character_ else conditionMessage(x$error)
+  )})
+
+write_csv(run_log,file.path("Butterfly_fits", paste0(model_label, "_run_log.csv")))
+run_log
+```
+
+
+
+# Convergence and Sampling Sufficency Checks
+
+## Loading Fits
+
+```{R}
+read_butterfly_outputs <- function(suffix, model_label) {
+  
+  files <- list.files(  "Butterfly_fits",recursive = TRUE,full.names = TRUE)
+  
+  expected_name <- paste0(model_label, "_", suffix)
+  files <- files[basename(files) == expected_name]
+  
+  map_dfr(files, \(file) {
+    read_csv(file, show_col_types = FALSE) %>%
+      mutate(species = basename(dirname(file)))
+  })
+}
+
+pars     <- read_butterfly_outputs("parameter_summary.csv", model_label)
+diag     <- read_butterfly_outputs("sampler_diagnostics.csv", model_label)
+```
+
+```{r}
+fit_check <- pars %>%
+  group_by(species) %>%
+  summarise( max_rhat = max(rhat, na.rm = TRUE),
+             min_ess_bulk = min(ess_bulk, na.rm = TRUE),
+             min_ess_tail = min(ess_tail, na.rm = TRUE),
+             .groups = "drop") %>%
+  left_join(diag %>% group_by(species) %>%
+              summarise(divergences = max(num_divergent),
+                        treedepth_hits = max(num_max_treedepth),
+                        min_ebfmi = min(min_ebfmi),
+                        .groups = "drop"),
+            by = "species") %>%
+  mutate(all_ok = max_rhat < 1.015 & divergences == 0 &
+           treedepth_hits == 0 & min_ebfmi >= 0.3)
+
+fit_check %>% arrange(desc(!all_ok), desc(max_rhat), min_ess_tail)
+
+```
+
+### Reasonableness of prior choices
+
+```{r message=FALSE}
+prior_check <- pars %>%
+  filter(str_detect(variable, "^sigma_(site|period)")) %>%
+  mutate(effect = str_remove(str_extract(variable, "^sigma_(site|period)"), "sigma_"),
+         prior_scale = if_else(effect == "site", 0.35, 0.8),
+         prior_q95 = qnorm(0.975) * prior_scale ) %>%
+  group_by(species, effect) %>%
+  summarise(largest_posterior_median = max(median),
+            largest_posterior_q5 = max(q5),
+            prior_q95 = first(prior_q95),
+            prior_tension = any(q5 > prior_q95),
+            .groups = "drop")
+
+prior_check %>% arrange(desc(prior_tension), desc(largest_posterior_median))
+
+```
+
+
+# Session Info
+
+```{r}
+sessionInfo()
+
+```
+
+

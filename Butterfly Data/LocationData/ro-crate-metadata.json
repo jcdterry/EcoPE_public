@@ -1,0 +1,204 @@
+{
+"@context": "https://w3id.org/ro/crate/1.2/context",
+"@graph": [
+{
+"@type": "CreativeWork",
+"@id": "ro-crate-metadata.json",
+"conformsTo": { "@id": "https://w3id.org/ro/crate/1.2" },
+"about": { "@id": "https://catalogue.ceh.ac.uk/id/d7256b49-f2e3-4ae7-907d-af729610c768" }
+},
+{
+"@type":"Dataset",
+"name":"United Kingdom Butterfly Monitoring Scheme: site location data 2024",
+"@id": "https://catalogue.ceh.ac.uk/id/d7256b49-f2e3-4ae7-907d-af729610c768",
+"identifier": {"@id": "https://doi.org/10.5285/d7256b49-f2e3-4ae7-907d-af729610c768"},
+"citation":"Botham, M.S., Middlebrook, I., Heywood, J., Harrower, C.A., Milborrow, J., Roy, D.B. (2025). United Kingdom Butterfly Monitoring Scheme: site location data 2024. NERC EDS Environmental Information Data Centre. (Dataset). https://doi.org/10.5285/d7256b49-f2e3-4ae7-907d-af729610c768",
+"hasPart": [
+{"@id":
+"data/ukbmssitelocationdata2024.csv"
+} ,
+{"@id":
+"supporting-documents/ukbms_site_data_2024.docx"
+} ],
+"description":"This dataset provides the details of all sites on which butterflies have been monitored as part of the UK Butterfly Monitoring Scheme (UKBMS). This includes all standard UKBMS transect sites, Wider Countryside Butterfly Survey (WCBS) sites and targeted species survey sites (timed counts, single-species transects, larval web and egg counts). Data includes the location within the UK, the length and number of sections for the butterfly transect on each site and the number of years each transect has been monitored. The location of some sites are sensitive and are excluded from this dataset. Users requiring access to the complete dataset, including sensitive site location data, can submit a request via the UKBMS website. The UKBMS started in 1976 with fewer than 50 sites. Since then the number of sites monitored each year has increased to several thousand. There are new sites each year and a small number where the transect is no longer surveyed. Details of this are provided in the site dataset in the form of the first and last year in which each site was surveyed. The majority of site data is provided by recorders at the time a transect is created. Site data are crucial in order to determine where extra recording effort is required and to investigate where butterfly populations are changing most and thus where conservation should be targeted, including across different habitat types. The UK Butterfly Monitoring Scheme is organized and funded by Butterfly Conservation (BC), the UK Centre for Ecology & Hydrology (UKCEH), the British Trust for Ornithology (BTO), and the Joint Nature Conservation Committee (JNCC). The UKBMS is indebted to all volunteers who contribute data to the scheme. This work was supported by the Natural Environment Research Council award number NE/R016429/1 as part of the UK-SCAPE programme delivering National Capability.",
+"isAccessibleForFree": true,
+"datePublished":"2025-12-19",
+"keywords": [
+"annual"
+,
+"BReVI"
+,
+"butterflies"
+,
+"Leipidoptera"
+,
+{"@type": "DefinedTerm","@id": "http://onto.nerc.ac.uk/CEHMD/topic/2","name": "Biodiversity" }
+],
+"creator": [
+{"@id": "https://orcid.org/0000-0002-5276-1405"},
+{"@id": "#creator1"},
+{"@id": "#creator2"},
+{"@id": "https://orcid.org/0000-0001-5070-5293"},
+{"@id": "#creator4"},
+{"@id": "https://orcid.org/0000-0002-5147-0331"}
+],
+"temporalCoverage":[
+"2024-01-01/2024-12-31" ],
+"spatialCoverage": [ {"@id": "#bbox0"}],
+"license": "https://eidc.ac.uk/licences/ogl-ukbms/plain",
+"distribution": [ {"@id": "#distribution0"}],
+"publisher":{"@id":"https://ror.org/04xw4m193"},
+"provider" : {"@id":"https://ror.org/04xw4m193"},
+"includedInDataCatalog":{ "@id": "#eidc-dataCatalogue"}
+},
+{
+"@id": "#eidc-dataCatalogue",
+"@type":"DataCatalog",
+"name":"Environmental Information Data Centre",
+"alternateName":"EIDC",
+"url":"https://catalogue.ceh.ac.uk/eidc/documents"
+},
+{
+"@id": "https://ror.org/04xw4m193",
+"@type":"Organization",
+"name":"NERC EDS Environmental Information Data Centre",
+"email": "info@eidc.ac.uk"
+}
+,{
+"@id": "https://spdx.org/licenses/OGL-UK-3.0",
+"@type": "CreativeWork",
+"name": "Open Government Licence v3",
+"alternateName":"OGL-UK-3.0",
+"sameAs": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/"
+}
+,{
+"@id": "https://doi.org/10.5285/d7256b49-f2e3-4ae7-907d-af729610c768",
+"@type":"PropertyValue",
+"propertyID": "https://registry.identifiers.org/registry/doi",
+"value": "10.5285/d7256b49-f2e3-4ae7-907d-af729610c768",
+"url": "https://doi.org/10.5285/d7256b49-f2e3-4ae7-907d-af729610c768"
+}
+, {
+"@id": "#bbox0",
+"@type":"Place",
+"geo": {
+"@id": "#geoshape0"
+}
+},
+{
+"@id": "#geoshape0",
+"@type": "GeoShape",
+"box":"-8.648 49.864, 1.768 60.861"
+}
+,
+{
+"@id": "https://orcid.org/0000-0002-5276-1405",
+"@type": "Person",
+"name": "Botham, M.S."
+, "familyName": "Botham"
+, "givenName": "Marc S"
+,"email": "enquiries@ceh.ac.uk"
+,"affiliation":{
+"@id": "https://ror.org/00pggkr55"
+}
+},
+{
+"@id": "#creator1",
+"@type": "Person",
+"name": "Middlebrook, I."
+, "familyName": "Middlebrook"
+, "givenName": "Ian"
+,"email": "imiddlebrook@butterfly-conservation.org"
+,"affiliation":{
+"@id": "https://ror.org/05jg03a59"
+}
+},
+{
+"@id": "#creator2",
+"@type": "Person",
+"name": "Heywood, J."
+, "familyName": "Heywood"
+, "givenName": "James"
+,"email": "james.heywood@bto.org"
+,"affiliation":{
+"@id": "https://ror.org/03w54w620"
+}
+},
+{
+"@id": "https://orcid.org/0000-0001-5070-5293",
+"@type": "Person",
+"name": "Harrower, C.A."
+, "familyName": "Harrower"
+, "givenName": "Colin A"
+,"email": "enquiries@ceh.ac.uk"
+,"affiliation":{
+"@id": "https://ror.org/00pggkr55"
+}
+},
+{
+"@id": "#creator4",
+"@type": "Person",
+"name": "Milborrow, J."
+, "familyName": "Milborrow"
+, "givenName": "Jo"
+,"email": "jmilborrow@butterfly-conservation.org"
+,"affiliation":{
+"@id": "https://ror.org/05jg03a59"
+}
+},
+{
+"@id": "https://orcid.org/0000-0002-5147-0331",
+"@type": "Person",
+"name": "Roy, D.B."
+, "familyName": "Roy"
+, "givenName": "David B"
+,"email": "enquiries@ceh.ac.uk"
+,"affiliation":{
+"@id": "https://ror.org/00pggkr55"
+}
+}
+, {
+"@id":
+"data/ukbmssitelocationdata2024.csv"
+,"name": "ukbmssitelocationdata2024.csv","@type": "File"
+,"encodingFormat": "text/csv"
+,"sha256": "1e3d7abb5a094c6a2d194038f7476034d78a514511dfef789088d24f0ede8ffd"
+,"lastModified": "2025-12-19T08:55:50"
+,"bytes": 491819
+,"contentUrl": "data/ukbmssitelocationdata2024.csv"
+}
+, {
+"@id":
+"supporting-documents/ukbms_site_data_2024.docx"
+,"name": "ukbms_site_data_2024.docx","@type": "File"
+,"sha256": "e2cdb6d450633d816a4aafa26e2a2e1d46e346f150e56e305fb208d2da49433e"
+,"lastModified": "2025-12-19T08:55:39"
+,"bytes": 25506
+,"contentUrl": "supporting-documents/ukbms_site_data_2024.docx"
+}
+, {
+"@id": "#distribution0",
+"@type":"DataDownload",
+"contentUrl":"https://data-package.ceh.ac.uk/data/d7256b49-f2e3-4ae7-907d-af729610c768"
+,"encodingFormat":"application/zip"
+}
+, {
+"@id": "https://ror.org/00pggkr55",
+"@type": "Organization",
+"name": "UK Centre for Ecology & Hydrology",
+"identifier": "https://ror.org/00pggkr55"
+},
+{
+"@id": "https://ror.org/05jg03a59",
+"@type": "Organization",
+"name": "Butterfly Conservation",
+"identifier": "https://ror.org/05jg03a59"
+},
+{
+"@id": "https://ror.org/03w54w620",
+"@type": "Organization",
+"name": "British Trust for Ornithology",
+"identifier": "https://ror.org/03w54w620"
+}
+]
+}
